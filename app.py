@@ -278,10 +278,26 @@ uploaded_files = st.sidebar.file_uploader(
 
 data = pd.DataFrame()
 
-# 1. New Uploaded Files Logic
-if:
-    folder_paths = glob.glob("data/Softener/*.csv") 
-    folder_paths = list(set(folder_paths))  # Remove duplicates
+# 1. ユーザーが手動でファイルをアップロードした場合は最優先で読み込み
+if uploaded_files:
+    st.sidebar.success("Using manually uploaded CSV file(s).")
+    for file in uploaded_files:
+        tmp = pd.read_csv(file)
+        data = pd.concat([data, tmp], axis=0)
+
+# 2. アップロードがない場合は、GitHubリポジトリ内のCSV群を自動取得して結合
+else:
+    # data/Softener/, data/ フォルダ内およびルート直下の全log CSVを検索
+    folder_paths = (
+        glob.glob("data/Softener/*.csv")
+        + glob.glob("data/Softner/*.csv")
+        + glob.glob("data/*.csv")
+        + glob.glob("log*.csv")
+    )
+    folder_paths = sorted(list(set(folder_paths)))  # 重複除外
+
+    # 処理済み出力データは生のログ検索から除外
+    folder_paths = [p for p in folder_paths if p != "softener_output_data.csv"]
 
     if folder_paths:
         st.sidebar.info(
@@ -290,18 +306,9 @@ if:
         for path in folder_paths:
             tmp = pd.read_csv(path)
             data = pd.concat([data, tmp], axis=0)
-    # elif os.path.exists("softener_output_data.csv"):
-    #     st.sidebar.info("Using default 'softener_output_data.csv'.")
-    #     data = pd.read_csv("softener_output_data.csv")
-
-elif uploaded_files:
-    st.sidebar.success("Using manually uploaded CSV file(s).")
-    for file in uploaded_files:
-        tmp = pd.read_csv(file)
-        data = pd.concat([data, tmp], axis=0)
-
-# 2. Fallback to GitHub Data Folder Logic (concat all .csv files in data/Softner or data/)
-
+    elif os.path.exists("softener_output_data.csv"):
+        st.sidebar.info("Using default 'softener_output_data.csv'.")
+        data = pd.read_csv("softener_output_data.csv")
 
 if not data.empty:
     # Datetime Parsing and Sorting (EXACT COLAB LOGIC)
@@ -338,7 +345,6 @@ if not data.empty:
     # ---------------------------------------------------------
     st.sidebar.markdown("---")
     st.sidebar.subheader("💾 Export Merged Data")
-    # Convert dataframe to CSV format
     csv_data = data.to_csv(index=False).encode("utf-8")
     st.sidebar.download_button(
         label="📥 Download merged CSV",
@@ -875,4 +881,6 @@ if not data.empty:
             st.plotly_chart(fig_day_hourly_v, use_container_width=True)
 
 else:
-    st.info("👈 Please upload Softener Log CSV file(s) or add CSV files into GitHub repo (e.g. data/Softner/).")
+    st.info(
+        "👈 Please upload Softener Log CSV file(s) or add CSV files into GitHub repo (e.g. data/Softener/)."
+    )

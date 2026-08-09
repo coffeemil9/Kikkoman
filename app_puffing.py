@@ -35,7 +35,7 @@ column_mapping_PP1 = {
     'TT2410': 'FRV Inlet Steam Temp (F) TT2410',
     # Make Up Steam
     'FT2000': 'Make Up Steam Flow Rate (LBs/HR) FT2000',
-    'PCV2000'; 'Make Up Steam Control (%) PCV2000',
+    'PCV2000': 'Make Up Steam Control (%) PCV2000',
     'PIC2000': 'Make Up Steam Pressure (PSI) PIC2000',
     'PD2302': 'Strainer Differential Pressure (mmH20) PD2302',
 
@@ -72,6 +72,8 @@ column_mapping_PP1 = {
     'FT2101': 'CB Bearling Cooling Water Flow Rate (GPM) FT2101',
 
     'PT2205': 'CB Seal Water Back Up Tank Air Pressure (PSI) PT2205',
+
+
 }
 
 column_mapping_PP2 = {

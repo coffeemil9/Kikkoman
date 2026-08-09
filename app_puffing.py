@@ -133,7 +133,7 @@ event_dates_for_PP1 = {
     "2026-01-19 12:00:00": "GearBox Changed",
     "2026-07-03 12:30:00": "temporary power outage",
     "2026-07-03 12:00:00": "CB Broken and Exchange new one",
-    "2026-07-05 16:00:00": "CB Bearing Water Line Solenoid Valve Change",
+    "2026-07-09 16:00:00": "CB Bearing Water Line Solenoid Valve Change",
     "2026-08-08 10:40:00": "Seal Water Preassure Low",
 }
 

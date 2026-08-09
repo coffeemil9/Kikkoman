@@ -287,7 +287,7 @@ if uploaded_files:
 
 # 2. Fallback to GitHub Data Folder Logic (concat all .csv files in data/Softner or data/)
 else:
-    folder_paths = glob.glob("data/Softner/*.csv") + glob.glob("data/*.csv")
+    folder_paths = glob.glob("data/Softener/*.csv") + glob.glob("data/*.csv")
     folder_paths = list(set(folder_paths))  # Remove duplicates
 
     if folder_paths:

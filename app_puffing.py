@@ -211,7 +211,6 @@ def add_event_history_annotations(fig, plot_data, event_dates):
                 line_dash="dash",
                 line_color="red",
             )
-            # アノテーション（イベント名）を最上部に表示
             fig.add_annotation(
                 x=event_date,
                 y=1,
@@ -331,16 +330,19 @@ if not raw_data.empty:
         mime="text/csv",
     )
 
-    # Date Range Selector
+    # Date Range Selector & Event Visibility Toggle
     min_dt = data["TimeStamp"].min()
     max_dt = data["TimeStamp"].max()
 
-    st.subheader("📅 Date & Time Filter")
+    st.subheader("📅 Date & Options Filter")
     col_d1, col_t1, col_d2, col_t2 = st.columns(4)
     start_date = col_d1.date_input("Start Date", min_dt.date())
     start_time = col_t1.time_input("Start Time", time(0, 0))
     end_date = col_d2.date_input("End Date", max_dt.date())
     end_time = col_t2.time_input("End Time", time(23, 59))
+
+    # ★ イベントログ（縦の赤線）表示切替チェックボックス
+    show_events = st.checkbox("🚩 Show Maintenance/Event Annotations on Charts", value=True)
 
     start_dt = pd.to_datetime(f"{start_date} {start_time}")
     end_dt = pd.to_datetime(f"{end_date} {end_time}")
@@ -385,7 +387,6 @@ if not raw_data.empty:
             else:
                 num_tags = len(selected_tags)
 
-                # 選択したタグの数だけサブプロットを作成 (時間軸連動: shared_xaxes=True)
                 fig1 = make_subplots(
                     rows=num_tags,
                     cols=1,
@@ -397,7 +398,6 @@ if not raw_data.empty:
                 feed_col = [c for c in plot_data.columns if "Feed Rate" in c]
 
                 for idx, tag in enumerate(selected_tags, start=1):
-                    # 主データ
                     fig1.add_trace(
                         go.Scatter(
                             x=plot_data["TimeStamp"],
@@ -409,7 +409,6 @@ if not raw_data.empty:
                         col=1,
                     )
 
-                    # オプション: Feed Rate の重ね順（各サブプロットに描画）
                     if include_feed_rate and feed_col:
                         fig1.add_trace(
                             go.Scatter(
@@ -424,7 +423,6 @@ if not raw_data.empty:
                             col=1,
                         )
 
-                # 表示件数に応じた高さ自動計算
                 fig1.update_layout(
                     height=max(400, 300 * num_tags),
                     title_text=f"{puffing_target} - Individual Trends (Synchronized X-Axis)",
@@ -432,7 +430,10 @@ if not raw_data.empty:
                     xaxis_type="date",
                 )
 
-                add_event_history_annotations(fig1, plot_data, event_dates)
+                # ★ チェックボックスがONの場合のみイベントアノテーションを追加
+                if show_events:
+                    add_event_history_annotations(fig1, plot_data, event_dates)
+
                 st.plotly_chart(fig1, use_container_width=True)
 
         # --- TAB 2: Multi-Tag Comparison (左右2軸で複数重ね合わせ) ---
@@ -497,7 +498,10 @@ if not raw_data.empty:
                 height=650,
             )
 
-            add_event_history_annotations(fig2, plot_data, event_dates)
+            # ★ チェックボックスがONの場合のみイベントアノテーションを追加
+            if show_events:
+                add_event_history_annotations(fig2, plot_data, event_dates)
+
             st.plotly_chart(fig2, use_container_width=True)
 
         # --- TAB 3: Maintenance & Event Logs ---

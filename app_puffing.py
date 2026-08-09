@@ -101,7 +101,17 @@ event_dates_for_PP1 = {
     "2026-08-08 10:40:00": "Seal Water Preassure Low",
 }
 
-event_dates_for_PP2 = {}
+event_dates_for_PP2 = {
+    "2025-11-14 08:00:00": "PP2 Bug <br> Filter <br> Issue and Solved",
+    "2025-11-11 08:00:00": "Something <br> Wrong <br> With Pressure",
+    "2026-02-01 08:00:00": "PP2 Puffing Exhaust <br> Something Wrong",
+    "2026-02-18 07:00:00": "PP2 GearBox Changed <br> PP2 Mechanical Seal <br> Replacements <br> Super Heater <br> PM Conducted",
+    "2026-03-19 13:00:00": "PP2 Changed BRV (High raw material clogging)",
+    "2026-03-31 14:00:00": "PP2 Make UP Steam Control Fix",
+    "2026-04-27 07:00:00": "PP2 Changed BRV <br> Due to High Current of BRV",
+    "2026-07-03 12:30:00": "temporary power outage",
+    "2026-07-08 16:00:00": "Start to process soy",
+}
 
 # ---------------------------------------------------------
 # DATA PROCESSING HELPER FUNCTIONS
@@ -181,6 +191,27 @@ def add_event_history_annotations(fig, plot_data, event_dates):
             )
 
 
+def get_event_dataframe(event_dates_dict):
+    """Convert event dates dictionary into a clean Pandas DataFrame for table display."""
+    events_list = []
+    for date_str, desc in event_dates_dict.items():
+        clean_desc = (
+            desc.replace("<br>", " ").replace("<BR>", " ").replace("  ", " ")
+        )
+        events_list.append(
+            {
+                "Event Date & Time": pd.to_datetime(date_str),
+                "Event Description": clean_desc,
+            }
+        )
+    df_events = pd.DataFrame(events_list)
+    if not df_events.empty:
+        df_events = df_events.sort_values(
+            "Event Date & Time"
+        ).reset_index(drop=True)
+    return df_events
+
+
 # ---------------------------------------------------------
 # SIDEBAR - DATA LOADING LOGIC
 # ---------------------------------------------------------
@@ -208,9 +239,9 @@ if uploaded_files:
 # 2. Auto-load from GitHub Repository
 else:
     if puffing_target == "Puffing #1":
-        search_paths = glob.glob("data/Puffing#1/*.csv") + glob.glob("PP1/*.csv")
+        search_paths = glob.glob("data/PP/PP1/*.csv") + glob.glob("PP1/*.csv")
     else:
-        search_paths = glob.glob("data/Puffing#2/*.csv") + glob.glob("PP2/*.csv")
+        search_paths = glob.glob("data/PP/PP2/*.csv") + glob.glob("PP2/*.csv")
 
     search_paths = sorted(list(set(search_paths)))
 
@@ -273,16 +304,16 @@ if not raw_data.empty:
     if plot_data.empty:
         st.warning("No data available in the selected date range.")
     else:
-        # Navigation Tabs for Plot Options
-        tab1, tab2, tab3 = st.tabs(
+        # Navigation Tabs for Plot & Event Options
+        tab1, tab2, tab3, tab4 = st.tabs(
             [
                 "📈 Single Tag Trend",
                 "🔀 Multi-Tag Comparison",
+                "📅 Maintenance & Event Logs",
                 "📋 Raw Data Table",
             ]
         )
 
-        # List of tags (excluding TimeStamp)
         available_tags = [
             col for col in plot_data.columns if col != "TimeStamp"
         ]
@@ -304,7 +335,6 @@ if not raw_data.empty:
                 )
             )
 
-            # Add Feed Rate overlay if PP1 and Feed Rate exists
             include_feed_rate = st.checkbox(
                 "Overlay Feed Rate (if available)", value=False
             )
@@ -416,7 +446,41 @@ if not raw_data.empty:
             add_event_history_annotations(fig2, plot_data, event_dates)
             st.plotly_chart(fig2, use_container_width=True)
 
-        # --- TAB 3: Raw Data Table ---
+        # --- TAB 3: Maintenance & Event Logs ---
         with tab3:
+            st.subheader(f"📅 Registered Event History ({puffing_target})")
+            st.write(
+                "List of maintenance events, equipment exchanges, and operational issues for the selected unit."
+            )
+
+            df_events = get_event_dataframe(event_dates)
+
+            if not df_events.empty:
+                # Filter events based on selected time range
+                filtered_events = df_events[
+                    (df_events["Event Date & Time"] >= start_dt)
+                    & (df_events["Event Date & Time"] <= end_dt)
+                ]
+
+                st.markdown(
+                    f"**Events within selected Date Filter ({start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')}):**"
+                )
+                if not filtered_events.empty:
+                    st.dataframe(filtered_events, use_container_width=True)
+                else:
+                    st.info(
+                        "No registered events fall within the current date filter range."
+                    )
+
+                st.markdown("---")
+                st.markdown(
+                    f"**All Registered Events for {puffing_target}:**"
+                )
+                st.dataframe(df_events, use_container_width=True)
+            else:
+                st.info(f"No events registered for {puffing_target}.")
+
+        # --- TAB 4: Raw Data Table ---
+        with tab4:
             st.subheader("📋 Processed Data Table")
             st.dataframe(plot_data, use_container_width=True)

@@ -544,7 +544,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig_hourly_box, use_container_width=True)
 
-        # 時間帯別 バイオリンプロット
+        # 時間帯別 バイオリンプロット（全体）
         st.subheader(
             "🎻 Density Distribution of FT0911 gpm by Hour of Day (Violin Plot)"
         )
@@ -604,7 +604,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig_hourly_violin, use_container_width=True)
 
-        # 【今回追加箇所】曜日別 平均FT0911 gpm（標準偏差エラーバー付き）
+        # 曜日別 平均FT0911 gpm（標準偏差エラーバー付き）
         st.subheader("📅 Average FT0911 gpm by Day of Week")
 
         daily_stats_gpm = (
@@ -656,6 +656,77 @@ if uploaded_files:
         )
 
         st.plotly_chart(fig_day_bar, use_container_width=True)
+
+        # 【今回追加箇所】曜日ごとの時間帯別バイオリンプロット (Violin Plot by Hour for Each Day)
+        st.subheader("📅🎻 Density Distribution of FT0911 gpm by Hour for Each Day of Week")
+
+        unique_days = data["Day of Week"].unique()
+        sorted_unique_days = [d for d in day_order if d in unique_days]
+
+        # 画面をスッキリ見せるため、ラジオボタンで曜日を切り替えられるUIを追加
+        selected_day = st.radio("表示する曜日を選択してください:", sorted_unique_days, horizontal=True)
+
+        if selected_day:
+            day_data = data[data["Day of Week"] == selected_day]
+
+            fig_day_hourly_v = go.Figure()
+            colors_day = px.colors.qualitative.Alphabet
+
+            hourly_means_d = []
+            hours_d = []
+
+            for hour in range(24):
+                hourly_data = day_data[day_data["Hour"] == hour]["FT0911 gpm"]
+
+                if not hourly_data.empty:
+                    color_index = hour % len(colors_day)
+                    current_color = colors_day[color_index]
+
+                    fig_day_hourly_v.add_trace(
+                        go.Violin(
+                            y=hourly_data,
+                            name=f"{hour}hr",
+                            box_visible=True,
+                            meanline_visible=True,
+                            points=False,
+                            line_color="black",
+                            line_width=1,
+                            fillcolor=current_color,
+                            opacity=0.6,
+                            scalemode="count",
+                        )
+                    )
+                    hourly_means_d.append(hourly_data.mean())
+                    hours_d.append(hour)
+
+            if hours_d:
+                fig_day_hourly_v.add_trace(
+                    go.Scatter(
+                        x=[f"{h}hr" for h in hours_d],
+                        y=hourly_means_d,
+                        mode="lines+markers+text",
+                        name="Hourly Mean",
+                        marker=dict(color="red", size=8),
+                        line=dict(color="red", width=2),
+                        text=[f"{m:.2f}" for m in hourly_means_d],
+                        textposition="top center",
+                    )
+                )
+
+            fig_day_hourly_v.update_layout(
+                title=f"Density Distribution of FT0911 gpm by Hour on {selected_day} (Violin Plot with Hourly Mean)",
+                title_x=0.5,
+                xaxis_title="Hour of Day",
+                yaxis_title="FT0911 gpm",
+                height=700,
+                violingap=0,
+                violinmode="overlay",
+                showlegend=True,
+                xaxis=dict(tickmode="linear", tick0=0, dtick=1),
+                hovermode="x unified",
+            )
+
+            st.plotly_chart(fig_day_hourly_v, use_container_width=True)
 
 else:
     st.info("👈 左側のサイドバーからSoftnerログCSVファイルをアップロードしてください。")

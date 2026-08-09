@@ -308,6 +308,7 @@ if uploaded_files:
         tmp = pd.read_csv(file)
         data = pd.concat([data, tmp], axis=0)
 
+    # Datetimeの確実な型変換とソート
     data["Datetime"] = pd.to_datetime(data["DATE"] + " " + data["TIME"])
     data.drop_duplicates(["Datetime"], inplace=True)
     data["Day of Week"] = data["Datetime"].dt.day_name()
@@ -339,7 +340,6 @@ if uploaded_files:
     with tab1:
         st.subheader("4-Row Detailed Process Trends")
 
-        # サイドバーで日付フィルターを設定
         min_date = data["Datetime"].min().date()
         max_date = data["Datetime"].max().date()
 
@@ -392,15 +392,20 @@ if uploaded_files:
     with tab3:
         st.subheader("📊 FT0911 gpm & 移動平均 / 分布解析")
 
-        data_indexed = data.set_index("Datetime")
+        # 【エラー修正箇所】Datetimeを正しくDatetimeIndexとして設定
+        data_indexed = data.copy()
+        data_indexed["Datetime"] = pd.to_datetime(data_indexed["Datetime"])
+        data_indexed = data_indexed.set_index("Datetime").sort_index()
+
+        # 移動平均の安全な計算
         data["FT0911 gpm_MA_1H"] = (
-            data_indexed["FT0911 gpm"].rolling(window="1H").mean().values
+            data_indexed["FT0911 gpm"].rolling(window="1h").mean().values
         )
         data["FT0911 gpm_MA_6H"] = (
-            data_indexed["FT0911 gpm"].rolling(window="6H").mean().values
+            data_indexed["FT0911 gpm"].rolling(window="6h").mean().values
         )
         data["FT0911 gpm_MA_24H"] = (
-            data_indexed["FT0911 gpm"].rolling(window="24H").mean().values
+            data_indexed["FT0911 gpm"].rolling(window="24h").mean().values
         )
 
         # 移動平均付きトレンド

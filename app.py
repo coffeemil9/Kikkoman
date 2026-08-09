@@ -319,25 +319,28 @@ if uploaded_files:
     with tab1:
         st.subheader("4-Row Detailed Process Trends")
 
-        min_date = data["Datetime"].min().date()
-        max_date = data["Datetime"].max().date()
+        min_dt = data["Datetime"].min()
+        max_dt = data["Datetime"].max()
 
-        col_d1, col_d2 = st.columns(2)
-        start_date = col_d1.date_input("開始日", min_date)
-        end_date = col_d2.date_input("終了日", max_date)
+        # 日時指定UI (日付 ＋ 時間)
+        col_d1, col_t1, col_d2, col_t2 = st.columns(4)
+        start_date = col_d1.date_input("開始日", min_dt.date())
+        start_time = col_t1.time_input("開始時間", time(0, 0))
+        end_date = col_d2.date_input("終了日", max_dt.date())
+        end_time = col_t2.time_input("終了時間", time(23, 59))
 
-        start_dt = pd.to_datetime(start_date)
-        end_dt = pd.to_datetime(end_date) + pd.Timedelta(days=1)
+        start_dt = pd.to_datetime(f"{start_date} {start_time}")
+        end_dt = pd.to_datetime(f"{end_date} {end_time}")
 
         filtered_df = data[
-            (data["Datetime"] >= start_dt) & (data["Datetime"] < end_dt)
+            (data["Datetime"] >= start_dt) & (data["Datetime"] <= end_dt)
         ]
 
         if not filtered_df.empty:
             fig_4row = plot_process_trends(filtered_df, start_dt, end_dt)
             st.plotly_chart(fig_4row, use_container_width=True)
         else:
-            st.warning("選択した日付範囲にデータが存在しません。")
+            st.warning("選択した日時範囲にデータが存在しません。")
 
     # --- TAB 2: トラブル自動検知 (Zero Flow) ---
     with tab2:
@@ -435,7 +438,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig_trend, use_container_width=True)
 
-        # 【今回追加箇所】Tank Levels over Time 単体グラフ
+        # Tank Levels over Time 単体グラフ
         st.subheader("🛢️ Tank Levels over Time")
         fig_tank = go.Figure()
         fig_tank.add_trace(

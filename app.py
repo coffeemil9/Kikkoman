@@ -1,6 +1,6 @@
+from datetime import datetime, time
 import glob
 import os
-from datetime import datetime, time
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
@@ -264,6 +264,117 @@ def find_prolonged_zero_flow_events(
     return events
 
 
+# 3. Prolonged Low Tank & Single Softener Flow Detection Function (New Integration)
+def find_low_tank_single_softener_events(
+    data, tank_level_threshold, min_duration_low_tank
+):
+    low_tank_level_condition = (
+        data["V0907 Tank Level"] < tank_level_threshold
+    )
+
+    softener1_flowing = data["Softener1 Flow Rate gpm"] > 0
+    softener2_flowing = data["Softener2 Flow Rate gpm"] > 0
+    softener3_flowing = data["Softener3 Flow Rate gpm"] > 0
+
+    num_softeners_flowing = (
+        softener1_flowing.astype(int)
+        + softener2_flowing.astype(int)
+        + softener3_flowing.astype(int)
+    )
+
+    combined_condition = low_tank_level_condition & (
+        num_softeners_flowing == 1
+    )
+    filtered_data_for_analysis = data[combined_condition].copy()
+
+    prolonged_single_softener_events = []
+
+    if not filtered_data_for_analysis.empty:
+
+        def get_active_softener(row):
+            if row["Softener1 Flow Rate gpm"] > 0:
+                return "Softener 1"
+            if row["Softener2 Flow Rate gpm"] > 0:
+                return "Softener 2"
+            if row["Softener3 Flow Rate gpm"] > 0:
+                return "Softener 3"
+            return "None"
+
+        filtered_data_for_analysis["Active Softener"] = (
+            filtered_data_for_analysis.apply(get_active_softener, axis=1)
+        )
+        filtered_data_for_analysis["time_diff"] = (
+            filtered_data_for_analysis["Datetime"].diff().dt.total_seconds()
+            / 60
+        )
+
+        is_new_event = (
+            (filtered_data_for_analysis["time_diff"] > 1.5)
+            | (
+                filtered_data_for_analysis["Active Softener"]
+                != filtered_data_for_analysis["Active Softener"].shift(1)
+            )
+            | (filtered_data_for_analysis["time_diff"].isnull())
+        )
+
+        filtered_data_for_analysis["event_group"] = is_new_event.cumsum()
+
+        mode_desc_dict = {
+            1: "OFFLINE",
+            2: "IN SERVICE",
+            4: "IN REGEN",
+            8: "REGEN COMP",
+            16: "STANDBY",
+        }
+
+        for _, group in filtered_data_for_analysis.groupby("event_group"):
+            event_start_time = group["Datetime"].min()
+            event_end_time = group["Datetime"].max()
+            duration = (
+                event_end_time - event_start_time
+            ).total_seconds() / 60
+
+            if not group.empty and duration >= min_duration_low_tank:
+                active_softeners_in_group = group["Active Softener"].unique()
+                if len(active_softeners_in_group) == 1:
+                    # Get Softener Status at Start & End Time
+                    start_statuses = {}
+                    time_diffs_start = (
+                        data["Datetime"] - event_start_time
+                    ).abs()
+                    closest_row_start = data.iloc[time_diffs_start.idxmin()]
+
+                    for i in range(1, 4):
+                        m = closest_row_start[f"Softner{i} Mode"]
+                        f = closest_row_start[f"Softener{i} Flow Rate gpm"]
+                        start_statuses[
+                            f"Softener {i} (Start)"
+                        ] = f"{mode_desc_dict.get(m, 'UNKNOWN')} ({f:.1f} gpm)"
+
+                    end_statuses = {}
+                    time_diffs_end = (data["Datetime"] - event_end_time).abs()
+                    closest_row_end = data.iloc[time_diffs_end.idxmin()]
+
+                    for i in range(1, 4):
+                        m = closest_row_end[f"Softner{i} Mode"]
+                        f = closest_row_end[f"Softener{i} Flow Rate gpm"]
+                        end_statuses[
+                            f"Softener {i} (End)"
+                        ] = f"{mode_desc_dict.get(m, 'UNKNOWN')} ({f:.1f} gpm)"
+
+                    event_entry = {
+                        "Start Time": event_start_time,
+                        "End Time": event_end_time,
+                        "Duration (min)": round(duration),
+                        "In Service Softener": active_softeners_in_group[0],
+                    }
+                    event_entry.update(start_statuses)
+                    event_entry.update(end_statuses)
+                    prolonged_single_softener_events.append(event_entry)
+
+    return prolonged_single_softener_events
+
+
 # ---------------------------------------------------------
 # MAIN APP FLOW
 # ---------------------------------------------------------
@@ -278,14 +389,14 @@ uploaded_files = st.sidebar.file_uploader(
 
 data = pd.DataFrame()
 
-# 1. ユーザーが手動でファイルをアップロードした場合は最優先で読み込み
+# 1. Manual Upload Priority
 if uploaded_files:
     st.sidebar.success("Using manually uploaded CSV file(s).")
     for file in uploaded_files:
         tmp = pd.read_csv(file)
         data = pd.concat([data, tmp], axis=0)
 
-# 2. アップロードがない場合は、GitHubリポジトリ内のCSV群を自動取得して結合
+# 2. Auto-load from GitHub repo
 else:
     folder_paths = (
         glob.glob("data/Softener/*.csv")
@@ -294,7 +405,6 @@ else:
         + glob.glob("log*.csv")
     )
     folder_paths = sorted(list(set(folder_paths)))
-
     folder_paths = [p for p in folder_paths if p != "softener_output_data.csv"]
 
     if folder_paths:
@@ -319,7 +429,7 @@ if not data.empty:
     data["Hour"] = data["Datetime"].dt.hour
     data = data.sort_values(by="Datetime").reset_index(drop=True)
 
-    # FLOW RATE CALCULATION & CLEANING (Steps 1 to 4)
+    # FLOW RATE CALCULATION & CLEANING
     for i in [1, 2, 3]:
         total_col = f"Softner{i} total flow"
         mode_col = f"Softner{i} Mode"
@@ -340,15 +450,16 @@ if not data.empty:
         mime="text/csv",
     )
 
-    tab1, tab2, tab3 = st.tabs(
+    tab1, tab2, tab3, tab4 = st.tabs(
         [
             "📈 4-Row Trend Analysis",
             "🔍 Prolonged Zero Flow Events",
+            "🛢️ Low Tank & Single Flow Events",
             "📊 Statistics & Distribution Analysis",
         ]
     )
 
-    # --- TAB 2: Zero Flow Event Detection & Summary Chart ---
+    # --- TAB 2: Zero Flow Event Detection ---
     with tab2:
         st.subheader("⚠️ Prolonged Zero Flow Events (In-Service Anomaly Detection)")
         st.write(
@@ -425,7 +536,37 @@ if not data.empty:
                     f"{name}: No zero flow anomalies found matching the specified duration ({min_dur}+ mins)."
                 )
 
-    # STEP 5: NaN Imputation with Conditional Mean
+    # --- TAB 3: Low Tank & Single Softener Flow Event Analysis (New Integration) ---
+    with tab3:
+        st.subheader("🛢️ Low Tank Level & Single Softener Flow Events")
+        st.write(
+            "Detects prolonged events where V0907 Tank Level is below threshold AND only ONE softener is flowing."
+        )
+
+        c_dur, c_thresh = st.columns(2)
+        min_dur_low_tank = c_dur.number_input(
+            "Minimum Duration Threshold (minutes)", min_value=1, value=60, step=5
+        )
+        tank_level_threshold = c_thresh.number_input(
+            "V0907 Tank Level Threshold (%)", min_value=1, max_value=100, value=75, step=5
+        )
+
+        single_flow_events = find_low_tank_single_softener_events(
+            data, tank_level_threshold, min_dur_low_tank
+        )
+
+        if single_flow_events:
+            events_df = pd.DataFrame(single_flow_events)
+            st.error(
+                f"🚨 Detected {len(single_flow_events)} prolonged event(s) (V0907 < {tank_level_threshold}% & Single Softener Flow >= {min_dur_low_tank} mins)"
+            )
+            st.dataframe(events_df, use_container_width=True)
+        else:
+            st.success(
+                f"✅ No prolonged events found for V0907 Tank Level < {tank_level_threshold}% with single softener flowing (>= {min_dur_low_tank} mins)."
+            )
+
+    # STEP 5: NaN Imputation with Conditional Mean for Trends
     for i in [1, 2, 3]:
         mode_col = f"Softner{i} Mode"
         rate_col = f"Softener{i} Flow Rate gpm"
@@ -459,8 +600,8 @@ if not data.empty:
         else:
             st.warning("No data available for the selected date and time range.")
 
-    # --- TAB 3: Statistics and Distribution Plots ---
-    with tab3:
+    # --- TAB 4: Statistics and Distribution Plots ---
+    with tab4:
         st.subheader("📊 FT0911 gpm & Moving Averages / Distribution Analysis")
 
         data_indexed = data.copy()
@@ -519,7 +660,6 @@ if not data.empty:
             secondary_y=False,
         )
 
-        # 凡例（Legend）を下部中央に配置する設定
         fig_trend.update_layout(
             title_text="FT0911 gpm & Moving Averages",
             title_x=0.5,

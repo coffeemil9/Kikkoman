@@ -297,9 +297,9 @@ else:
         for path in folder_paths:
             tmp = pd.read_csv(path)
             data = pd.concat([data, tmp], axis=0)
-    elif os.path.exists("softener_output_data.csv"):
-        st.sidebar.info("Using default 'softener_output_data.csv'.")
-        data = pd.read_csv("softener_output_data.csv")
+    # elif os.path.exists("softener_output_data.csv"):
+    #     st.sidebar.info("Using default 'softener_output_data.csv'.")
+    #     data = pd.read_csv("softener_output_data.csv")
 
 if not data.empty:
     # Datetime Parsing and Sorting (EXACT COLAB LOGIC)

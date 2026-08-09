@@ -435,6 +435,44 @@ if uploaded_files:
         )
         st.plotly_chart(fig_trend, use_container_width=True)
 
+        # 【今回追加箇所】Tank Levels over Time 単体グラフ
+        st.subheader("🛢️ Tank Levels over Time")
+        fig_tank = go.Figure()
+        fig_tank.add_trace(
+            go.Scatter(
+                x=data["Datetime"],
+                y=data["V0910 Tank Level"],
+                name="V0910 Tank Level",
+            )
+        )
+        fig_tank.add_trace(
+            go.Scatter(
+                x=data["Datetime"],
+                y=data["V0909 Tank Level"],
+                name="V0909 Tank Level",
+            )
+        )
+        fig_tank.add_trace(
+            go.Scatter(
+                x=data["Datetime"],
+                y=data["V0907 Tank Level"],
+                name="V0907 Tank Level",
+            )
+        )
+        fig_tank.update_layout(
+            title_text="Tank Levels over Time",
+            title_x=0.5,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.2,
+                xanchor="center",
+                x=0.5,
+            ),
+            yaxis_title="Tank Level",
+        )
+        st.plotly_chart(fig_tank, use_container_width=True)
+
         # 統計量計算
         mean_ft = data["FT0911 gpm"].mean()
         median_ft = data["FT0911 gpm"].median()
@@ -657,14 +695,17 @@ if uploaded_files:
 
         st.plotly_chart(fig_day_bar, use_container_width=True)
 
-        # 【今回追加箇所】曜日ごとの時間帯別バイオリンプロット (Violin Plot by Hour for Each Day)
-        st.subheader("📅🎻 Density Distribution of FT0911 gpm by Hour for Each Day of Week")
+        # 曜日ごとの時間帯別バイオリンプロット
+        st.subheader(
+            "📅🎻 Density Distribution of FT0911 gpm by Hour for Each Day of Week"
+        )
 
         unique_days = data["Day of Week"].unique()
         sorted_unique_days = [d for d in day_order if d in unique_days]
 
-        # 画面をスッキリ見せるため、ラジオボタンで曜日を切り替えられるUIを追加
-        selected_day = st.radio("表示する曜日を選択してください:", sorted_unique_days, horizontal=True)
+        selected_day = st.radio(
+            "表示する曜日を選択してください:", sorted_unique_days, horizontal=True
+        )
 
         if selected_day:
             day_data = data[data["Day of Week"] == selected_day]

@@ -279,14 +279,7 @@ uploaded_files = st.sidebar.file_uploader(
 data = pd.DataFrame()
 
 # 1. New Uploaded Files Logic
-if uploaded_files:
-    st.sidebar.success("Using manually uploaded CSV file(s).")
-    for file in uploaded_files:
-        tmp = pd.read_csv(file)
-        data = pd.concat([data, tmp], axis=0)
-
-# 2. Fallback to GitHub Data Folder Logic (concat all .csv files in data/Softner or data/)
-else:
+if:
     folder_paths = glob.glob("data/Softener/*.csv") 
     folder_paths = list(set(folder_paths))  # Remove duplicates
 
@@ -300,6 +293,15 @@ else:
     # elif os.path.exists("softener_output_data.csv"):
     #     st.sidebar.info("Using default 'softener_output_data.csv'.")
     #     data = pd.read_csv("softener_output_data.csv")
+
+elif uploaded_files:
+    st.sidebar.success("Using manually uploaded CSV file(s).")
+    for file in uploaded_files:
+        tmp = pd.read_csv(file)
+        data = pd.concat([data, tmp], axis=0)
+
+# 2. Fallback to GitHub Data Folder Logic (concat all .csv files in data/Softner or data/)
+
 
 if not data.empty:
     # Datetime Parsing and Sorting (EXACT COLAB LOGIC)

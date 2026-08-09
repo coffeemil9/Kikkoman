@@ -27,58 +27,92 @@ st.write(
 # COLUMN MAPPING DICTIONARIES
 # ---------------------------------------------------------
 column_mapping_PP1 = {
-    "P2001": "CB Current",
-    "C2006": "FRV Current",
-    "TT2410": "FRV Front Temperature",
-    "C2007": "BRV Current",
-    "FT2000": "Flow Rate of Make up steam (LBs/HR)",
-    "PD2302": "Strainer Differential Pressure",
-    "PIC2000": "System Pressure",
-    "FT2402": "Main (SH Outlet) Air Velocity",
-    "TIC2000": "Main Temperature",
-    "TT2000": "Main Temperature2",
-    "TT2402": "Raw Material Input Temperature",
-    "TT2406": "Cooler Rear Temperature",
-    "TT2416": "Cooler Front Temperature",
-    "TT2413": "S.H. Inlet Temperature (F)",
-    "TIC2403": "S.H. Outlet Temperature (F)",
-    "TT2423": "S.H. Upper Combustion",
-    "T2412": "Temperature befor the Cyclon",
-    "FT2506": "ByPass Flowrate",
-    "FT2403": "SH Bypass Flowrate",
-    "C2003": "Feed Rate",
-    "TCV2403": "S.H. Output",
-    "PT2103": "Seal Water Pressure (PSI)",
-    "FT2103": "Seal Water Flow Rate (GPM)",
-    "FT2101": "Bearling Cooling Water Flow Rate",
+    'C2003' : 'Feed Rate (Hz) C2003',
+    'P2001' : 'CB Current (AMP) P2001',
+    'C2006': 'FRV Current (AMP) C2006',
+    'C2007': 'BRV Current (AMP) C2007',
+
+    'TT2410': 'FRV Inlet Steam Temp (F) TT2410',
+    # Make Up Steam
+    'FT2000': 'Make Up Steam Flow Rate (LBs/HR) FT2000',
+    'PCV2000'; 'Make Up Steam Control (%) PCV2000',
+    'PIC2000': 'Make Up Steam Pressure (PSI) PIC2000',
+    'PD2302': 'Strainer Differential Pressure (mmH20) PD2302',
+
+    'FT2402': 'Main System Steam Velocity (FT/SEC) FT2402',
+    'PT2000': 'Main System Steam Pressure (PSI) PT2000',
+    'TIC2000': 'Main System Steam Control Temp (F) TIC200',
+    'TT2000': 'Main System Steam Temp (F) TT2000',
+    'TT2402': 'Pre-Heater Temp (F) TT2402',
+
+    # Souper Heater
+    'TT2413': 'S.H. Inlet Temp (F) TT2413',
+    'TIC2403': 'S.H. Outlet Control Temp (F) TIC2403',
+    'TT2403': 'S.H. Outlet Temp (F) TT2403',
+    'TT2423': 'S.H. Combustion Temp (F) TT2423',
+    'TCV2403' : 'S.H. Control Output (%) TCV2403',
+    'PT2403' : 'S.H Fuel Gas Feed Pressure (PSI) PT2403',
+    'FT2506': 'ByPass Steam Flowrate (LBs/Hr) FT2506', 
+    'FT2403': 'Bypass Before S.H. Steam Flowrate (LBs/Hr) FT2403',
+    'TT2412' : 'Inlet temp for Cyclon (F) TT2412',
+    
+    # Cooler 
+    'TT2406': 'Cooler Outlet Temp (F) TT2406',
+    'TT2416': 'Cooler Inlet Temp (F) TT2416',
+    'TT2404': 'Cooler Inlet Cylclon Air Temp (F) TT2404',
+    'TT2405': 'Puffed Soy Transfer Air Temp (F) TT2405',
+    # Seal Water
+    'PT2103': 'CB Seal Water Pressure (PSI) PT2103',
+    'FT2103': 'CB Seal Water Flow Rate Driven Side (GPM) FT2103',
+    'FT2113': 'CB Seal Water Flow Rate Non-Driven Side (GPM) FT2113',
+    'TT1_2006': 'CB Seal Water Temp Driven Side (F)? TT1_2006', # Adam 調査必要
+    'TT2_2006': 'CB Seal Water Temp Non-Driven Side (F)? TT1_2006', # Adam 調査必要
+    'TT3_2006': 'CB Bearling Cooling Water Temp (F)? TT1_2006', # Adam 調査必要
+
+    'FT2101': 'CB Bearling Cooling Water Flow Rate (GPM) FT2101',
+
+    'PT2205': 'CB Seal Water Back Up Tank Air Pressure (PSI) PT2205',
 }
 
 column_mapping_PP2 = {
-    "EM2152": "CB Current",
-    "EM25560.": "FRV Current",
-    "EM25570": "BRV Current",
-    "FT20530": "Flow Rate of Make up steam (LBs/HR)",
-    "DPT2357": "Strainer Differential Pressure",
-    "PT20510": "System Pressure",
-    "PT2051.Out": "System Pressure PID OUTPUT",
-    "PT2051.PV": "System Pressure PV",
-    "PT2051.SP": "System Pressure SP",
-    "FT24540": "Main (SH Outlet) Air Velocity",
-    "TT2051.out": "Main Temperature PID OUT",
-    "TT2051.PV": "Main Temperature PV",
-    "TT2051.SP": "Main Temperature SP",
-    "TT2454O.Out": "S.H. out Temperature (F) OUT",
-    "TT2454O.PV": "S.H. out Temperature (F) PV",
-    "TT2454O.SP": "S.H. out Temperature (F) SP",
-    "TEMP_TE2454O0": "S.H. output Temperature (F)",
-    "TEMP_TE2454I": "S.H. inlet Temperature (F)",
-    "PT2152.0": "Mechanical Seal Water Pressure (PSI)",
-    ".[Puffing2.Flow_Rate_FP6.]": "Mechanical Seal Water Flow Rate1 (GPM)",
-    ".[Puffing2.Flow_Rate_FP7.]": "Mechanical Seal Water Flow Rate2 (GPM)",
-    ".[Puffing2.FLOW_RATE_FP8.]": "CB Bearing Water Flow Rate (GPM)",
-    "TE20510.": "Temperature befor the Cyclon",
-    "TEMP_TE2455I0": "Temp Before Product Cooler",
-    "TEMP_TE2455O0": "Temp After Product Cooler",
+    'EM2152': 'CB Current (AMP) EM2152',
+    'EM25560.': 'FRV Current (AMP) EM25560.',
+    'EM25570': 'BRV Current (AMP) EM25570',
+    
+    # Make Up Steam
+    'FT20530': 'Make Up Steam Flow Rate (LBs/HR) FT20530',
+    'DPT2357': 'Strainer Differential Pressure DPT2357',
+
+    # Main System Steam
+    'PT20510': 'Main System Pressure (PSI) PT20510',
+    'PT2051.Out': 'Main System Pressure PID Control (%) PT2051.Out',
+    'PT2051.PV': 'Main System Pressure PV (PSI) PT2051.PV',
+    'PT2051.SP': 'Main System Pressure SP (PSI) PT2051.SP',
+
+    'FT24540': 'Main System Steam Velocity FT24540',
+
+    'TT2051.out': 'Main System Temp Control (%) TT2051.out',
+    'TT2051.PV': 'Main System Temp PV (F) TT2051.PV',
+    'TT2051.SP': 'Main System Temp SP (F) TT2051.SP',
+
+    # Super Heater
+    'TT2454O.Out': 'S.H. Outlet Control (%) TT2454O.Out',
+    'TT2454O.PV': 'S.H. Outlet Temp PV (F) TT2454O.PV',
+    'TT2454O.SP': 'S.H. Outlet Temp SP (F) TT2454O.SP',
+    'TEMP_TE2454O0': 'S.H. Outlet Temp (F) TEMP_TE2454O0',
+    'TEMP_TE2454I': 'S.H. Inlet Temp (F) TEMP_TE2454I',
+
+    'TE20510.': 'Inlet Temp for Cyclone (F) TE20510.',
+
+    # Cooler
+    'TEMP_TE2455I0': 'Cooler Inlet Temp (F) TEMP_TE2455I0',
+    'TEMP_TE2455O0': 'Cooler Outlet Temp (F) TEMP_TE2455O0',
+
+    # Seal Water
+    'PT2152.0': 'CB Seal Water Pressure (PSI) PT2152.0',
+    '.[Puffing2.Flow_Rate_FP6.]': 'CB Seal Water Flow Rate Driven Side (GPM) .[Puffing2.Flow_Rate_FP6.]',
+    '.[Puffing2.Flow_Rate_FP7.]': 'CB Seal Water Flow Rate Non-Driven Side (GPM) .[Puffing2.Flow_Rate_FP7.]',
+    '.[Puffing2.FLOW_RATE_FP8.]': 'CB Bearing Cooling Water Flow Rate (GPM) .[Puffing2.FLOW_RATE_FP8.]',
 }
 
 # ---------------------------------------------------------

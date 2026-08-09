@@ -236,12 +236,28 @@ if uploaded_files:
         tmp = pd.read_csv(file, low_memory=False)
         raw_data = pd.concat([raw_data, tmp], axis=0)
 
-# 2. Auto-load from GitHub Repository
+# 2. Auto-load from GitHub Repository (Updated Paths to data/Puffing#1 & data/Puffing#2)
 else:
     if puffing_target == "Puffing #1":
-        search_paths = glob.glob("data/PP/PP1/*.csv") + glob.glob("PP1/*.csv")
+        search_dir = "data/Puffing#1"
+        fallback_dirs = ["data/PP/PP1", "PP1"]
     else:
-        search_paths = glob.glob("data/PP/PP2/*.csv") + glob.glob("PP2/*.csv")
+        search_dir = "data/Puffing#2"
+        fallback_dirs = ["data/PP/PP2", "PP2"]
+
+    search_paths = []
+    
+    # Direct directory scan for exact folder name matching
+    if os.path.exists(search_dir):
+        for fname in os.listdir(search_dir):
+            if fname.endswith(".csv"):
+                search_paths.append(os.path.join(search_dir, fname))
+                
+    for fb in fallback_dirs:
+        if os.path.exists(fb):
+            for fname in os.listdir(fb):
+                if fname.endswith(".csv"):
+                    search_paths.append(os.path.join(fb, fname))
 
     search_paths = sorted(list(set(search_paths)))
 
@@ -254,7 +270,7 @@ else:
             raw_data = pd.concat([raw_data, tmp], axis=0)
     else:
         st.info(
-            f"👈 Please upload CSV file(s) or add files into `data/PP/PP1/` or `data/PP/PP2/` in your repository."
+            f"👈 Please upload CSV file(s) or add files into `data/Puffing#1/` or `data/Puffing#2/` in your repository."
         )
 
 # ---------------------------------------------------------
@@ -304,7 +320,7 @@ if not raw_data.empty:
     if plot_data.empty:
         st.warning("No data available in the selected date range.")
     else:
-        # Navigation Tabs for Plot & Event Options
+        # Navigation Tabs
         tab1, tab2, tab3, tab4 = st.tabs(
             [
                 "📈 Single Tag Trend",
@@ -456,7 +472,6 @@ if not raw_data.empty:
             df_events = get_event_dataframe(event_dates)
 
             if not df_events.empty:
-                # Filter events based on selected time range
                 filtered_events = df_events[
                     (df_events["Event Date & Time"] >= start_dt)
                     & (df_events["Event Date & Time"] <= end_dt)

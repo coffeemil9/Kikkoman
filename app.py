@@ -1,3 +1,5 @@
+import glob
+import os
 from datetime import datetime, time
 import warnings
 import matplotlib.pyplot as plt
@@ -16,7 +18,7 @@ st.set_page_config(page_title="Soft Water Analyzer", layout="wide")
 
 st.title("📊 Soft Water Log Analysis App")
 st.write(
-    "A web application integrating Google Colab data analysis workflows. Upload CSV log files to perform analysis."
+    "A web application integrating Google Colab data analysis workflows. Upload CSV log files or auto-load from repository."
 )
 
 # ---------------------------------------------------------
@@ -236,16 +238,13 @@ def plot_process_trends(filtered_data, start_datetime, end_datetime):
     return fig
 
 
-# 2. Prolonged Zero Flow Event Detection Function (Fixed Grouping Logic)
+# 2. Prolonged Zero Flow Event Detection Function
 def find_prolonged_zero_flow_events(
     df, softener_flow_col, softener_mode_col, min_duration_minutes
 ):
     df = df.sort_values(by="Datetime").reset_index(drop=True)
-
-    # 条件: モードが 2 (IN SERVICE) かつ 流量が 0
     is_zero_flow = (df[softener_mode_col] == 2) & (df[softener_flow_col] == 0)
 
-    # 連続したTrueブロックにのみIDを割り当てる修正ロジック
     group_id = (~is_zero_flow).cumsum()[is_zero_flow]
 
     events = []
@@ -272,41 +271,106 @@ def find_prolonged_zero_flow_events(
 # Sidebar: File Upload
 st.sidebar.header("📁 Data Loading")
 uploaded_files = st.sidebar.file_uploader(
-    "Select Softener Log CSV files (Multiple files allowed)",
+    "Upload new Softener Log CSV files (Optional)",
     type=["csv"],
     accept_multiple_files=True,
 )
 
+data = pd.DataFrame()
+
+# 1. New Uploaded Files Logic
 if uploaded_files:
-    data = pd.DataFrame()
+    st.sidebar.success("Using manually uploaded CSV file(s).")
     for file in uploaded_files:
         tmp = pd.read_csv(file)
         data = pd.concat([data, tmp], axis=0)
 
-    # Datetime Parsing and Sorting
-    data["Datetime"] = pd.to_datetime(data["DATE"] + " " + data["TIME"])
+# 2. Fallback to GitHub Data Folder Logic (concat all .csv files in data/Softner or data/)
+else:
+    folder_paths = glob.glob("data/Softener/*.csv") + glob.glob("data/*.csv")
+    folder_paths = list(set(folder_paths))  # Remove duplicates
+
+    if folder_paths:
+        st.sidebar.info(
+            f"Automatically concatenated {len(folder_paths)} CSV file(s) from GitHub repo."
+        )
+        for path in folder_paths:
+            tmp = pd.read_csv(path)
+            data = pd.concat([data, tmp], axis=0)
+    elif os.path.exists("softener_output_data.csv"):
+        st.sidebar.info("Using default 'softener_output_data.csv'.")
+        data = pd.read_csv("softener_output_data.csv")
+
+if not data.empty:
+    # Datetime Parsing and Sorting (EXACT COLAB LOGIC)
+    if "Datetime" in data.columns and not data["Datetime"].isnull().all():
+        data["Datetime"] = pd.to_datetime(data["Datetime"])
+    else:
+        data["Datetime"] = pd.to_datetime(data["DATE"] + " " + data["TIME"])
+
     data.drop_duplicates(["Datetime"], inplace=True)
     data["Day of Week"] = data["Datetime"].dt.day_name()
     data["Hour"] = data["Datetime"].dt.hour
     data = data.sort_values(by="Datetime").reset_index(drop=True)
 
     # FLOW RATE CALCULATION & CLEANING (Steps 1 to 4)
-    for i in [1, 2, 3]:
-        total_col = f"Softner{i} total flow"
-        mode_col = f"Softner{i} Mode"
-        rate_col = f"Softener{i} Flow Rate gpm"
+    data["Softener1 Flow Rate gpm"] = (
+        data["Softner1 total flow"] - data["Softner1 total flow"].shift(1)
+    ) * 100
+    data.loc[data["Softner1 Mode"] != 2, "Softener1 Flow Rate gpm"] = 0
+    data.loc[data["Softener1 Flow Rate gpm"] < 0, "Softener1 Flow Rate gpm"] = (
+        np.nan
+    )
+    data.loc[
+        data["Softener1 Flow Rate gpm"] > 300, "Softener1 Flow Rate gpm"
+    ] = np.nan
 
-        # 1. Flow Rate Calculation
-        data[rate_col] = (data[total_col] - data[total_col].shift(1)) * 100
+    data["Softener2 Flow Rate gpm"] = (
+        data["Softner2 total flow"] - data["Softner2 total flow"].shift(1)
+    ) * 100
+    data.loc[data["Softner2 Mode"] != 2, "Softener2 Flow Rate gpm"] = 0
+    data.loc[data["Softener2 Flow Rate gpm"] < 0, "Softener2 Flow Rate gpm"] = (
+        np.nan
+    )
+    data.loc[
+        data["Softener2 Flow Rate gpm"] > 300, "Softener2 Flow Rate gpm"
+    ] = np.nan
 
-        # 2. Mode-Based Filtering (Setting to Zero when NOT Mode 2)
-        data.loc[data[mode_col] != 2, rate_col] = 0
+    data["Softener3 Flow Rate gpm"] = (
+        data["Softner3 total flow"] - data["Softner3 total flow"].shift(1)
+    ) * 100
+    data.loc[data["Softner3 Mode"] != 2, "Softener3 Flow Rate gpm"] = 0
+    data.loc[data["Softener3 Flow Rate gpm"] < 0, "Softener3 Flow Rate gpm"] = (
+        np.nan
+    )
+    data.loc[
+        data["Softener3 Flow Rate gpm"] > 300, "Softener3 Flow Rate gpm"
+    ] = np.nan
 
-        # 3. Handling Negative Flow Rates
-        data.loc[data[rate_col] < 0, rate_col] = np.nan
+    # Calculate the mean flow rate for each softener in Mode 2
+    mean_softer1_in_service = data.loc[
+        data["Softner1 Mode"] == 2, "Softener1 Flow Rate gpm"
+    ].mean()
+    mean_softer2_in_service = data.loc[
+        data["Softner2 Mode"] == 2, "Softener2 Flow Rate gpm"
+    ].mean()
+    mean_softer3_in_service = data.loc[
+        data["Softner3 Mode"] == 2, "Softener3 Flow Rate gpm"
+    ].mean()
 
-        # 4. Handling Excessively High Flow Rates (> 300)
-        data.loc[data[rate_col] > 300, rate_col] = np.nan
+    # Copy raw zeros for Tab 2 Anomaly Detection BEFORE filling NaNs
+    data_raw_zeros = data.copy()
+
+    # Fill NaN values with conditional mean for Trends/Plots
+    data["Softener1 Flow Rate gpm"].fillna(
+        mean_softer1_in_service, inplace=True
+    )
+    data["Softener2 Flow Rate gpm"].fillna(
+        mean_softer2_in_service, inplace=True
+    )
+    data["Softener3 Flow Rate gpm"].fillna(
+        mean_softer3_in_service, inplace=True
+    )
 
     # ---------------------------------------------------------
     # Navigation Tabs
@@ -331,13 +395,13 @@ if uploaded_files:
         )
 
         softener1_events = find_prolonged_zero_flow_events(
-            data, "Softener1 Flow Rate gpm", "Softner1 Mode", min_dur
+            data_raw_zeros, "Softener1 Flow Rate gpm", "Softner1 Mode", min_dur
         )
         softener2_events = find_prolonged_zero_flow_events(
-            data, "Softener2 Flow Rate gpm", "Softner2 Mode", min_dur
+            data_raw_zeros, "Softener2 Flow Rate gpm", "Softner2 Mode", min_dur
         )
         softener3_events = find_prolonged_zero_flow_events(
-            data, "Softener3 Flow Rate gpm", "Softner3 Mode", min_dur
+            data_raw_zeros, "Softener3 Flow Rate gpm", "Softner3 Mode", min_dur
         )
 
         # 1. Summary Table and Bar Chart
@@ -397,14 +461,6 @@ if uploaded_files:
                 st.success(
                     f"{name}: No zero flow anomalies found matching the specified duration ({min_dur}+ mins)."
                 )
-
-    # STEP 5: NaN Imputation with Conditional Mean (Only for Plots/Trends)
-    for i in [1, 2, 3]:
-        mode_col = f"Softner{i} Mode"
-        rate_col = f"Softener{i} Flow Rate gpm"
-
-        mean_in_service = data.loc[data[mode_col] == 2, rate_col].mean()
-        data[rate_col].fillna(mean_in_service, inplace=True)
 
     # --- TAB 1: 4-Row Process Trends ---
     with tab1:
@@ -835,4 +891,4 @@ if uploaded_files:
             st.plotly_chart(fig_day_hourly_v, use_container_width=True)
 
 else:
-    st.info("👈 Please upload Softener Log CSV file(s) using the sidebar.")
+    st.info("👈 Please upload Softener Log CSV file(s) or add CSV files into GitHub repo (e.g. data/Softner/).")

@@ -11,20 +11,20 @@ import streamlit as st
 
 warnings.filterwarnings("ignore")
 
-# ページの設定
+# Page Configuration
 st.set_page_config(page_title="Soft Water Analyzer", layout="wide")
 
 st.title("📊 Soft Water Log Analysis App")
 st.write(
-    "Google Colabの分析処理を統合したWebアプリケーションです。CSVファイルをアップロードして分析を実行します。"
+    "A web application integrating Google Colab data analysis workflows. Upload CSV log files to perform analysis."
 )
 
 # ---------------------------------------------------------
-# HELPER FUNCTIONS (From modules.py - Soft Water Only)
+# HELPER FUNCTIONS
 # ---------------------------------------------------------
 
 
-# 1. 4段連動プロセスTrendグラフを描画する関数
+# 1. 4-Row Detailed Process Trends Chart
 def plot_process_trends(filtered_data, start_datetime, end_datetime):
     fig = make_subplots(
         rows=4,
@@ -236,7 +236,7 @@ def plot_process_trends(filtered_data, start_datetime, end_datetime):
     return fig
 
 
-# 2. IN SERVICE（稼働中）にもかかわらず、流量が0のトラブル期間を検知する関数
+# 2. Prolonged Zero Flow Event Detection Function
 def find_prolonged_zero_flow_events(
     df, softener_flow_col, softener_mode_col, min_duration_minutes
 ):
@@ -274,10 +274,12 @@ def find_prolonged_zero_flow_events(
 # MAIN APP FLOW
 # ---------------------------------------------------------
 
-# サイドバー: ファイルアップロード
-st.sidebar.header("📁 データ読み込み")
+# Sidebar: File Upload
+st.sidebar.header("📁 Data Loading")
 uploaded_files = st.sidebar.file_uploader(
-    "SoftnerログCSVファイルを選択（複数可）", type=["csv"], accept_multiple_files=True
+    "Select Softener Log CSV files (Multiple files allowed)",
+    type=["csv"],
+    accept_multiple_files=True,
 )
 
 if uploaded_files:
@@ -286,14 +288,14 @@ if uploaded_files:
         tmp = pd.read_csv(file)
         data = pd.concat([data, tmp], axis=0)
 
-    # Datetimeの確実な型変換とソート
+    # Datetime Parsing and Sorting
     data["Datetime"] = pd.to_datetime(data["DATE"] + " " + data["TIME"])
     data.drop_duplicates(["Datetime"], inplace=True)
     data["Day of Week"] = data["Datetime"].dt.day_name()
-    data["Hour"] = data["Datetime"].dt.hour  # 時間帯（0〜23）を取得
+    data["Hour"] = data["Datetime"].dt.hour
     data = data.sort_values(by="Datetime")
 
-    # Flow Rate クレンジング・補正処理
+    # Flow Rate Calculation and Cleaning
     for i in [1, 2, 3]:
         total_col = f"Softner{i} total flow"
         mode_col = f"Softner{i} Mode"
@@ -309,25 +311,29 @@ if uploaded_files:
         data[rate_col].fillna(mean_in_service, inplace=True)
 
     # ---------------------------------------------------------
-    # タブ切り替え（Soft Water分析専用）
+    # Navigation Tabs
     # ---------------------------------------------------------
     tab1, tab2, tab3 = st.tabs(
-        ["📈 4段トレンド解析", "🔍 トラブル自動検知 (Zero Flow)", "📊 統計 & 各種分布解析"]
+        [
+            "📈 4-Row Trend Analysis",
+            "🔍 Prolonged Zero Flow Events",
+            "📊 Statistics & Distribution Analysis",
+        ]
     )
 
-    # --- TAB 1: 4段連動グラフ ---
+    # --- TAB 1: 4-Row Process Trends ---
     with tab1:
         st.subheader("4-Row Detailed Process Trends")
 
         min_dt = data["Datetime"].min()
         max_dt = data["Datetime"].max()
 
-        # 日時指定UI (日付 ＋ 時間)
+        # Date & Time Selection UI
         col_d1, col_t1, col_d2, col_t2 = st.columns(4)
-        start_date = col_d1.date_input("開始日", min_dt.date())
-        start_time = col_t1.time_input("開始時間", time(0, 0))
-        end_date = col_d2.date_input("終了日", max_dt.date())
-        end_time = col_t2.time_input("終了時間", time(23, 59))
+        start_date = col_d1.date_input("Start Date", min_dt.date())
+        start_time = col_t1.time_input("Start Time", time(0, 0))
+        end_date = col_d2.date_input("End Date", max_dt.date())
+        end_time = col_t2.time_input("End Time", time(23, 59))
 
         start_dt = pd.to_datetime(f"{start_date} {start_time}")
         end_dt = pd.to_datetime(f"{end_date} {end_time}")
@@ -340,17 +346,17 @@ if uploaded_files:
             fig_4row = plot_process_trends(filtered_df, start_dt, end_dt)
             st.plotly_chart(fig_4row, use_container_width=True)
         else:
-            st.warning("選択した日時範囲にデータが存在しません。")
+            st.warning("No data available for the selected date and time range.")
 
-    # --- TAB 2: トラブル自動検知 (Zero Flow) ---
+    # --- TAB 2: Zero Flow Event Detection ---
     with tab2:
-        st.subheader("⚠️ Prolonged Zero Flow Events (In-Service 異常検知)")
+        st.subheader("⚠️ Prolonged Zero Flow Events (In-Service Anomaly Detection)")
         st.write(
-            "Softenerが 'IN SERVICE'（稼働中）であるにもかかわらず、流量が0になっているイベントを抽出します。"
+            "Extracts events where the Softener was 'IN SERVICE' but the measured flow rate was zero."
         )
 
         min_dur = st.number_input(
-            "判定する最小継続時間（分）", min_value=1, value=15, step=5
+            "Minimum duration threshold (minutes)", min_value=1, value=15, step=5
         )
 
         for i in [1, 2, 3]:
@@ -361,25 +367,25 @@ if uploaded_files:
                 data, flow_c, mode_c, min_dur
             )
 
-            st.write(f"### 🔹 Softener #{i} 異常検知結果")
+            st.write(f"### 🔹 Softener #{i} Detection Results")
             if events:
                 events_df = pd.DataFrame(events)
                 st.dataframe(events_df, use_container_width=True)
             else:
                 st.success(
-                    f"Softener #{i}: 指定された条件（{min_dur}分以上）に該当するゼロ流量異常は見つかりませんでした。"
+                    f"Softener #{i}: No zero flow anomalies found matching the specified duration ({min_dur}+ mins)."
                 )
 
-    # --- TAB 3: 統計 ＆ 各種分布解析 ---
+    # --- TAB 3: Statistics and Distribution Plots ---
     with tab3:
-        st.subheader("📊 FT0911 gpm & 移動平均 / 分布解析")
+        st.subheader("📊 FT0911 gpm & Moving Averages / Distribution Analysis")
 
-        # DatetimeIndexの設定
+        # Set DatetimeIndex for Rolling Calculations
         data_indexed = data.copy()
         data_indexed["Datetime"] = pd.to_datetime(data_indexed["Datetime"])
         data_indexed = data_indexed.set_index("Datetime").sort_index()
 
-        # 移動平均の計算
+        # Moving Averages
         data["FT0911 gpm_MA_1H"] = (
             data_indexed["FT0911 gpm"].rolling(window="1h").mean().values
         )
@@ -390,7 +396,7 @@ if uploaded_files:
             data_indexed["FT0911 gpm"].rolling(window="24h").mean().values
         )
 
-        # 移動平均付きトレンド
+        # FT0911 & PT0911 Moving Average Chart
         fig_trend = make_subplots(specs=[[{"secondary_y": True}]])
         fig_trend.add_trace(
             go.Scatter(
@@ -438,7 +444,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig_trend, use_container_width=True)
 
-        # Tank Levels over Time 単体グラフ
+        # Standalone Tank Levels Chart
         st.subheader("🛢️ Tank Levels over Time")
         fig_tank = go.Figure()
         fig_tank.add_trace(
@@ -476,7 +482,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig_tank, use_container_width=True)
 
-        # 統計量計算
+        # Statistical Metrics
         mean_ft = data["FT0911 gpm"].mean()
         median_ft = data["FT0911 gpm"].median()
         std_dev_ft = data["FT0911 gpm"].std()
@@ -492,7 +498,7 @@ if uploaded_files:
         c2.metric("Median FT0911 gpm", f"{median_ft:.2f}")
         c3.metric("95% CI", f"({ci_lower:.2f}, {ci_upper:.2f})")
 
-        # ヒストグラム（黒い枠線付き）
+        # Histogram with Black Outlines
         fig_hist = px.histogram(
             data,
             x="FT0911 gpm",
@@ -529,7 +535,7 @@ if uploaded_files:
 
         st.plotly_chart(fig_hist, use_container_width=True)
 
-        # 全体バイオリンプロット
+        # Overall Violin Plot
         st.subheader("🎻 Overall Violin Plot of FT0911 gpm")
         fig_violin = px.violin(
             data,
@@ -541,7 +547,7 @@ if uploaded_files:
         fig_violin.update_layout(title_x=0.5)
         st.plotly_chart(fig_violin, use_container_width=True)
 
-        # 時間帯別 箱ひげ図
+        # Hourly Box Plot
         st.subheader("📦 Distribution of FT0911 gpm by Hour of Day (Box Plot)")
         fig_hourly_box = go.Figure()
         hourly_means = []
@@ -585,7 +591,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig_hourly_box, use_container_width=True)
 
-        # 時間帯別 バイオリンプロット（全体）
+        # Hourly Violin Plot (Overall)
         st.subheader(
             "🎻 Density Distribution of FT0911 gpm by Hour of Day (Violin Plot)"
         )
@@ -645,7 +651,7 @@ if uploaded_files:
         )
         st.plotly_chart(fig_hourly_violin, use_container_width=True)
 
-        # 曜日別 平均FT0911 gpm（標準偏差エラーバー付き）
+        # Bar Chart by Day of Week with Standard Deviation Error Bars
         st.subheader("📅 Average FT0911 gpm by Day of Week")
 
         daily_stats_gpm = (
@@ -698,7 +704,7 @@ if uploaded_files:
 
         st.plotly_chart(fig_day_bar, use_container_width=True)
 
-        # 曜日ごとの時間帯別バイオリンプロット
+        # Violin Plot by Hour for Each Day of Week
         st.subheader(
             "📅🎻 Density Distribution of FT0911 gpm by Hour for Each Day of Week"
         )
@@ -707,7 +713,7 @@ if uploaded_files:
         sorted_unique_days = [d for d in day_order if d in unique_days]
 
         selected_day = st.radio(
-            "表示する曜日を選択してください:", sorted_unique_days, horizontal=True
+            "Select a day of the week:", sorted_unique_days, horizontal=True
         )
 
         if selected_day:
@@ -773,4 +779,4 @@ if uploaded_files:
             st.plotly_chart(fig_day_hourly_v, use_container_width=True)
 
 else:
-    st.info("👈 左側のサイドバーからSoftnerログCSVファイルをアップロードしてください。")
+    st.info("👈 Please upload Softener Log CSV file(s) using the sidebar.")

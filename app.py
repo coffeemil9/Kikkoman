@@ -236,30 +236,25 @@ def plot_process_trends(filtered_data, start_datetime, end_datetime):
     return fig
 
 
-# 2. Prolonged Zero Flow Event Detection Function (Exact Colab Logic)
+# 2. Prolonged Zero Flow Event Detection Function (Fixed Grouping Logic)
 def find_prolonged_zero_flow_events(
     df, softener_flow_col, softener_mode_col, min_duration_minutes
 ):
     df = df.sort_values(by="Datetime").reset_index(drop=True)
-    is_zero_flow_in_service = (df[softener_mode_col] == 2) & (
-        df[softener_flow_col] == 0
-    )
 
-    block_starts = is_zero_flow_in_service & (
-        ~is_zero_flow_in_service.shift(1).fillna(False)
-    )
-    block_ids = block_starts.cumsum()
+    # 条件: モードが 2 (IN SERVICE) かつ 流量が 0
+    is_zero_flow = (df[softener_mode_col] == 2) & (df[softener_flow_col] == 0)
+
+    # 連続したTrueブロックにのみIDを割り当てる修正ロジック
+    group_id = (~is_zero_flow).cumsum()[is_zero_flow]
 
     events = []
-    for block_id in block_ids.unique():
-        if block_id == 0:
-            continue
-        current_block = df[is_zero_flow_in_service & (block_ids == block_id)]
-        if not current_block.empty:
-            duration = len(current_block)
+    if not group_id.empty:
+        for gid, block in df.loc[group_id.index].groupby(group_id):
+            duration = len(block)
             if duration >= min_duration_minutes:
-                start_time = current_block["Datetime"].min()
-                end_time = current_block["Datetime"].max()
+                start_time = block["Datetime"].min()
+                end_time = block["Datetime"].max()
                 events.append(
                     {
                         "Start Time": start_time,
@@ -295,66 +290,23 @@ if uploaded_files:
     data["Hour"] = data["Datetime"].dt.hour
     data = data.sort_values(by="Datetime").reset_index(drop=True)
 
-    # ---------------------------------------------------------
-    # EXACT COLAB FLOW RATE CALCULATION & CLEANING CODE
-    # ---------------------------------------------------------
-    data["Softener1 Flow Rate gpm"] = (
-        data["Softner1 total flow"] - data["Softner1 total flow"].shift(1)
-    ) * 100
-    data.loc[data["Softner1 Mode"] != 2, "Softener1 Flow Rate gpm"] = 0
-    data.loc[
-        data["Softener1 Flow Rate gpm"] < 0, "Softener1 Flow Rate gpm"
-    ] = np.nan  # Set negative values to NaN
-    data.loc[
-        data["Softener1 Flow Rate gpm"] > 300, "Softener1 Flow Rate gpm"
-    ] = np.nan  # Set values > 300 to NaN
+    # FLOW RATE CALCULATION & CLEANING (Steps 1 to 4)
+    for i in [1, 2, 3]:
+        total_col = f"Softner{i} total flow"
+        mode_col = f"Softner{i} Mode"
+        rate_col = f"Softener{i} Flow Rate gpm"
 
-    data["Softener2 Flow Rate gpm"] = (
-        data["Softner2 total flow"] - data["Softner2 total flow"].shift(1)
-    ) * 100
-    data.loc[data["Softner2 Mode"] != 2, "Softener2 Flow Rate gpm"] = 0
-    data.loc[
-        data["Softener2 Flow Rate gpm"] < 0, "Softener2 Flow Rate gpm"
-    ] = np.nan  # Set negative values to NaN
-    data.loc[
-        data["Softener2 Flow Rate gpm"] > 300, "Softener2 Flow Rate gpm"
-    ] = np.nan  # Set values > 300 to NaN
+        # 1. Flow Rate Calculation
+        data[rate_col] = (data[total_col] - data[total_col].shift(1)) * 100
 
-    data["Softener3 Flow Rate gpm"] = (
-        data["Softner3 total flow"] - data["Softner3 total flow"].shift(1)
-    ) * 100
-    data.loc[data["Softner3 Mode"] != 2, "Softener3 Flow Rate gpm"] = 0
-    data.loc[
-        data["Softener3 Flow Rate gpm"] < 0, "Softener3 Flow Rate gpm"
-    ] = np.nan  # Set negative values to NaN
-    data.loc[
-        data["Softener3 Flow Rate gpm"] > 300, "Softener3 Flow Rate gpm"
-    ] = np.nan  # Set values > 300 to NaN
+        # 2. Mode-Based Filtering (Setting to Zero when NOT Mode 2)
+        data.loc[data[mode_col] != 2, rate_col] = 0
 
-    # Calculate the mean flow rate for each softener only when it's in 'IN SERVICE' mode (Mode 2)
-    mean_softer1_in_service = data.loc[
-        data["Softner1 Mode"] == 2, "Softener1 Flow Rate gpm"
-    ].mean()
-    mean_softer2_in_service = data.loc[
-        data["Softner2 Mode"] == 2, "Softener2 Flow Rate gpm"
-    ].mean()
-    mean_softer3_in_service = data.loc[
-        data["Softner3 Mode"] == 2, "Softener3 Flow Rate gpm"
-    ].mean()
+        # 3. Handling Negative Flow Rates
+        data.loc[data[rate_col] < 0, rate_col] = np.nan
 
-    # Create a copy for event detection BEFORE filling NaNs (Preserving raw 0s for Tab 2)
-    data_raw_zeros = data.copy()
-
-    # Fill NaN values with conditional mean
-    data["Softener1 Flow Rate gpm"].fillna(
-        mean_softer1_in_service, inplace=True
-    )
-    data["Softener2 Flow Rate gpm"].fillna(
-        mean_softer2_in_service, inplace=True
-    )
-    data["Softener3 Flow Rate gpm"].fillna(
-        mean_softer3_in_service, inplace=True
-    )
+        # 4. Handling Excessively High Flow Rates (> 300)
+        data.loc[data[rate_col] > 300, rate_col] = np.nan
 
     # ---------------------------------------------------------
     # Navigation Tabs
@@ -378,15 +330,14 @@ if uploaded_files:
             "Minimum duration threshold (minutes)", min_value=1, value=30, step=5
         )
 
-        # Uses data_raw_zeros (un-filled) to detect actual 0 values
         softener1_events = find_prolonged_zero_flow_events(
-            data_raw_zeros, "Softener1 Flow Rate gpm", "Softner1 Mode", min_dur
+            data, "Softener1 Flow Rate gpm", "Softner1 Mode", min_dur
         )
         softener2_events = find_prolonged_zero_flow_events(
-            data_raw_zeros, "Softener2 Flow Rate gpm", "Softner2 Mode", min_dur
+            data, "Softener2 Flow Rate gpm", "Softner2 Mode", min_dur
         )
         softener3_events = find_prolonged_zero_flow_events(
-            data_raw_zeros, "Softener3 Flow Rate gpm", "Softner3 Mode", min_dur
+            data, "Softener3 Flow Rate gpm", "Softner3 Mode", min_dur
         )
 
         # 1. Summary Table and Bar Chart
@@ -446,6 +397,14 @@ if uploaded_files:
                 st.success(
                     f"{name}: No zero flow anomalies found matching the specified duration ({min_dur}+ mins)."
                 )
+
+    # STEP 5: NaN Imputation with Conditional Mean (Only for Plots/Trends)
+    for i in [1, 2, 3]:
+        mode_col = f"Softner{i} Mode"
+        rate_col = f"Softener{i} Flow Rate gpm"
+
+        mean_in_service = data.loc[data[mode_col] == 2, rate_col].mean()
+        data[rate_col].fillna(mean_in_service, inplace=True)
 
     # --- TAB 1: 4-Row Process Trends ---
     with tab1:

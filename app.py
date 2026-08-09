@@ -367,7 +367,7 @@ if uploaded_files:
                     f"Softener #{i}: 指定された条件（{min_dur}分以上）に該当するゼロ流量異常は見つかりませんでした。"
                 )
 
-    # --- TAB 3: 統計 ＆ ヒストグラム / バイオリン / 時間帯別Box Plot ---
+    # --- TAB 3: 統計 ＆ ヒストグラム / 全体バイオリン / 時間帯別Box / 時間帯別バイオリン ---
     with tab3:
         st.subheader("📊 FT0911 gpm & 移動平均 / 分布解析")
 
@@ -488,8 +488,8 @@ if uploaded_files:
 
         st.plotly_chart(fig_hist, use_container_width=True)
 
-        # バイオリンプロット
-        st.subheader("🎻 Violin Plot of FT0911 gpm")
+        # 全体バイオリンプロット
+        st.subheader("🎻 Overall Violin Plot of FT0911 gpm")
         fig_violin = px.violin(
             data,
             y="FT0911 gpm",
@@ -500,16 +500,14 @@ if uploaded_files:
         fig_violin.update_layout(title_x=0.5)
         st.plotly_chart(fig_violin, use_container_width=True)
 
-        # 【追加箇所】時間帯別 箱ひげ図 + 平均値ライン (Box Plot with Hourly Mean)
-        st.subheader("📦 Distribution of FT0911 gpm by Hour of Day")
-
+        # 時間帯別 箱ひげ図
+        st.subheader("📦 Distribution of FT0911 gpm by Hour of Day (Box Plot)")
         fig_hourly_box = go.Figure()
         hourly_means = []
         hours = []
 
         for hour in range(24):
             hourly_data = data[data["Hour"] == hour]["FT0911 gpm"]
-
             if not hourly_data.empty:
                 fig_hourly_box.add_trace(
                     go.Box(
@@ -522,7 +520,6 @@ if uploaded_files:
                 hourly_means.append(hourly_data.mean())
                 hours.append(hour)
 
-        # 平均値の散布図＋折れ線グラフを追加
         fig_hourly_box.add_trace(
             go.Scatter(
                 x=[f"{h}hr" for h in hours],
@@ -545,8 +542,65 @@ if uploaded_files:
             showlegend=True,
             hovermode="x unified",
         )
-
         st.plotly_chart(fig_hourly_box, use_container_width=True)
+
+        # 【今回追加箇所】時間帯別 バイオリンプロット (Violin Plot with Hourly Mean & Color Palette)
+        st.subheader("🎻 Density Distribution of FT0911 gpm by Hour of Day (Violin Plot)")
+        fig_hourly_violin = go.Figure()
+        colors = px.colors.qualitative.Alphabet
+        hourly_means_v = []
+        hours_v = []
+
+        for hour in range(24):
+            hourly_data = data[data["Hour"] == hour]["FT0911 gpm"]
+
+            if not hourly_data.empty:
+                color_index = hour % len(colors)
+                current_color = colors[color_index]
+
+                fig_hourly_violin.add_trace(
+                    go.Violin(
+                        y=hourly_data,
+                        name=f"{hour}hr",
+                        box_visible=True,
+                        meanline_visible=True,
+                        points=False,
+                        line_color="black",
+                        line_width=1,
+                        fillcolor=current_color,
+                        opacity=0.6,
+                        scalemode="count",
+                    )
+                )
+                hourly_means_v.append(hourly_data.mean())
+                hours_v.append(hour)
+
+        fig_hourly_violin.add_trace(
+            go.Scatter(
+                x=[f"{h}hr" for h in hours_v],
+                y=hourly_means_v,
+                mode="lines+markers+text",
+                name="Hourly Mean",
+                marker=dict(color="red", size=8),
+                line=dict(color="red", width=2),
+                text=[f"{m:.2f}" for m in hourly_means_v],
+                textposition="top center",
+            )
+        )
+
+        fig_hourly_violin.update_layout(
+            title="Density Distribution of FT0911 gpm by Hour of Day (Violin Plot with Hourly Mean)",
+            title_x=0.5,
+            xaxis_title="Hour of Day",
+            yaxis_title="FT0911 gpm",
+            height=700,
+            violingap=0,
+            violinmode="overlay",
+            showlegend=True,
+            xaxis=dict(tickmode="linear", tick0=0, dtick=1),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_hourly_violin, use_container_width=True)
 
 else:
     st.info("👈 左側のサイドバーからSoftnerログCSVファイルをアップロードしてください。")

@@ -236,7 +236,7 @@ def plot_process_trends(filtered_data, start_datetime, end_datetime):
     return fig
 
 
-# 2. Prolonged Zero Flow Event Detection Function
+# 2. Prolonged Zero Flow Event Detection Function (Same as Colab)
 def find_prolonged_zero_flow_events(
     df, softener_flow_col, softener_mode_col, min_duration_minutes
 ):
@@ -293,22 +293,18 @@ if uploaded_files:
     data.drop_duplicates(["Datetime"], inplace=True)
     data["Day of Week"] = data["Datetime"].dt.day_name()
     data["Hour"] = data["Datetime"].dt.hour
-    data = data.sort_values(by="Datetime")
+    data = data.sort_values(by="Datetime").reset_index(drop=True)
 
-    # Flow Rate Calculation and Cleaning
+    # STEP 1: Flow Rate Calculation & Initial Mode Filter (Raw Zero Calculation)
     for i in [1, 2, 3]:
         total_col = f"Softner{i} total flow"
         mode_col = f"Softner{i} Mode"
         rate_col = f"Softener{i} Flow Rate gpm"
 
+        # Difference * 100
         data[rate_col] = (data[total_col] - data[total_col].shift(1)) * 100
+        # Set to 0 if NOT IN SERVICE (Mode != 2)
         data.loc[data[mode_col] != 2, rate_col] = 0
-        data.loc[(data[rate_col] < 0) | (data[rate_col] > 300), rate_col] = (
-            np.nan
-        )
-
-        mean_in_service = data.loc[data[mode_col] == 2, rate_col].mean()
-        data[rate_col].fillna(mean_in_service, inplace=True)
 
     # ---------------------------------------------------------
     # Navigation Tabs
@@ -321,34 +317,8 @@ if uploaded_files:
         ]
     )
 
-    # --- TAB 1: 4-Row Process Trends ---
-    with tab1:
-        st.subheader("4-Row Detailed Process Trends")
-
-        min_dt = data["Datetime"].min()
-        max_dt = data["Datetime"].max()
-
-        # Date & Time Selection UI
-        col_d1, col_t1, col_d2, col_t2 = st.columns(4)
-        start_date = col_d1.date_input("Start Date", min_dt.date())
-        start_time = col_t1.time_input("Start Time", time(0, 0))
-        end_date = col_d2.date_input("End Date", max_dt.date())
-        end_time = col_t2.time_input("End Time", time(23, 59))
-
-        start_dt = pd.to_datetime(f"{start_date} {start_time}")
-        end_dt = pd.to_datetime(f"{end_date} {end_time}")
-
-        filtered_df = data[
-            (data["Datetime"] >= start_dt) & (data["Datetime"] <= end_dt)
-        ]
-
-        if not filtered_df.empty:
-            fig_4row = plot_process_trends(filtered_df, start_dt, end_dt)
-            st.plotly_chart(fig_4row, use_container_width=True)
-        else:
-            st.warning("No data available for the selected date and time range.")
-
     # --- TAB 2: Zero Flow Event Detection & Summary Chart ---
+    # (Calculated BEFORE Imputation/Mean Filling to preserve raw 0 values)
     with tab2:
         st.subheader("⚠️ Prolonged Zero Flow Events (In-Service Anomaly Detection)")
         st.write(
@@ -359,7 +329,7 @@ if uploaded_files:
             "Minimum duration threshold (minutes)", min_value=1, value=30, step=5
         )
 
-        # Detect Events for Softeners 1, 2, and 3
+        # Detect Events for Softeners 1, 2, and 3 using RAW flow rate
         softener1_events = find_prolonged_zero_flow_events(
             data, "Softener1 Flow Rate gpm", "Softner1 Mode", min_dur
         )
@@ -427,6 +397,43 @@ if uploaded_files:
                 st.success(
                     f"{name}: No zero flow anomalies found matching the specified duration ({min_dur}+ mins)."
                 )
+
+    # STEP 2: Cleaning Anomalies (<0, >300 -> NaN) & Imputation (Only for Trend & Stats Plots)
+    for i in [1, 2, 3]:
+        mode_col = f"Softner{i} Mode"
+        rate_col = f"Softener{i} Flow Rate gpm"
+
+        data.loc[(data[rate_col] < 0) | (data[rate_col] > 300), rate_col] = (
+            np.nan
+        )
+        mean_in_service = data.loc[data[mode_col] == 2, rate_col].mean()
+        data[rate_col].fillna(mean_in_service, inplace=True)
+
+    # --- TAB 1: 4-Row Process Trends ---
+    with tab1:
+        st.subheader("4-Row Detailed Process Trends")
+
+        min_dt = data["Datetime"].min()
+        max_dt = data["Datetime"].max()
+
+        col_d1, col_t1, col_d2, col_t2 = st.columns(4)
+        start_date = col_d1.date_input("Start Date", min_dt.date())
+        start_time = col_t1.time_input("Start Time", time(0, 0))
+        end_date = col_d2.date_input("End Date", max_dt.date())
+        end_time = col_t2.time_input("End Time", time(23, 59))
+
+        start_dt = pd.to_datetime(f"{start_date} {start_time}")
+        end_dt = pd.to_datetime(f"{end_date} {end_time}")
+
+        filtered_df = data[
+            (data["Datetime"] >= start_dt) & (data["Datetime"] <= end_dt)
+        ]
+
+        if not filtered_df.empty:
+            fig_4row = plot_process_trends(filtered_df, start_dt, end_dt)
+            st.plotly_chart(fig_4row, use_container_width=True)
+        else:
+            st.warning("No data available for the selected date and time range.")
 
     # --- TAB 3: Statistics and Distribution Plots ---
     with tab3:

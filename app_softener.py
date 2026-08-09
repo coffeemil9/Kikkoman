@@ -264,7 +264,7 @@ def find_prolonged_zero_flow_events(
     return events
 
 
-# 3. Prolonged Low Tank & Single Softener Flow Detection Function (New Integration)
+# 3. Prolonged Low Tank & Single Softener Flow Detection Function
 def find_low_tank_single_softener_events(
     data, tank_level_threshold, min_duration_low_tank
 ):
@@ -337,7 +337,6 @@ def find_low_tank_single_softener_events(
             if not group.empty and duration >= min_duration_low_tank:
                 active_softeners_in_group = group["Active Softener"].unique()
                 if len(active_softeners_in_group) == 1:
-                    # Get Softener Status at Start & End Time
                     start_statuses = {}
                     time_diffs_start = (
                         data["Datetime"] - event_start_time
@@ -450,12 +449,14 @@ if not data.empty:
         mime="text/csv",
     )
 
-    tab1, tab2, tab3, tab4 = st.tabs(
+    # タブ設定に "📝 Event Log" を追加
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
         [
             "📈 4-Row Trend Analysis",
             "🔍 Prolonged Zero Flow Events",
             "🛢️ Low Tank & Single Flow Events",
             "📊 Statistics & Distribution Analysis",
+            "📝 Event Log",
         ]
     )
 
@@ -536,7 +537,7 @@ if not data.empty:
                     f"{name}: No zero flow anomalies found matching the specified duration ({min_dur}+ mins)."
                 )
 
-    # --- TAB 3: Low Tank & Single Softener Flow Event Analysis (New Integration) ---
+    # --- TAB 3: Low Tank & Single Softener Flow Event Analysis ---
     with tab3:
         st.subheader("🛢️ Low Tank Level & Single Softener Flow Events")
         st.write(
@@ -998,6 +999,58 @@ if not data.empty:
             )
 
             st.plotly_chart(fig_day_hourly_v, use_container_width=True)
+
+    # --- TAB 5: Event Log ---
+    with tab5:
+        st.subheader("📝 Manual Event Log Analysis")
+        st.write("Track and filter operation events and maintenance logs.")
+
+        event_log = {
+            '2026-06-18 09:00:00': "GF RUN",
+            '2026-06-19 09:00:00': "GF RUN",
+            '2026-06-25 09:00:00': "Softener#1 not working?",
+            '2026-06-29 08:00:00': "Adjusted the valve for softener#3",
+            '2026-07-16 09:00:00': "GF RUN",
+            '2026-07-16 08:00:00': "Softener#2 not working?",
+            '2026-07-17 09:00:00': "GF RUN",
+        }
+
+        # DataFrameの作成と整形
+        df_event = pd.DataFrame(list(event_log.items()), columns=["Timestamp", "Event"])
+        df_event["Timestamp"] = pd.to_datetime(df_event["Timestamp"])
+        df_event = df_event.sort_values(by="Timestamp").reset_index(drop=True)
+
+        # 概要表示（メトリクス）
+        col_m1, col_m2 = st.columns(2)
+        col_m1.metric("Total Events Recorded", len(df_event))
+        col_m2.metric("Latest Event Date", df_event["Timestamp"].max().strftime("%Y-%m-%d"))
+
+        # イベントフィルタ
+        all_event_types = sorted(list(df_event["Event"].unique()))
+        selected_events = st.multiselect(
+            "Filter by Event Type:",
+            options=all_event_types,
+            default=all_event_types,
+        )
+
+        filtered_events = df_event[df_event["Event"].isin(selected_events)]
+
+        # イベントタイムライン（Plotly散布図）
+        fig_events = px.scatter(
+            filtered_events,
+            x="Timestamp",
+            y="Event",
+            color="Event",
+            title="Event Timeline",
+            labels={"Timestamp": "Date & Time", "Event": "Event Description"},
+        )
+        fig_events.update_traces(marker=dict(size=12))
+        fig_events.update_layout(title_x=0.5, showlegend=False)
+        st.plotly_chart(fig_events, use_container_width=True)
+
+        # イベントデータテーブル
+        st.subheader("📋 Event Details List")
+        st.dataframe(filtered_events, use_container_width=True)
 
 else:
     st.info(

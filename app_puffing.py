@@ -208,9 +208,9 @@ if uploaded_files:
 # 2. Auto-load from GitHub Repository
 else:
     if puffing_target == "Puffing #1":
-        search_paths = glob.glob("data/PP/PP1/*.csv") + glob.glob("PP1/*.csv")
+        search_paths = glob.glob("data/Puffing#1/*.csv") + glob.glob("PP1/*.csv")
     else:
-        search_paths = glob.glob("data/PP/PP2/*.csv") + glob.glob("PP2/*.csv")
+        search_paths = glob.glob("data/Puffing#2/*.csv") + glob.glob("PP2/*.csv")
 
     search_paths = sorted(list(set(search_paths)))
 

@@ -367,7 +367,7 @@ if uploaded_files:
                     f"Softener #{i}: 指定された条件（{min_dur}分以上）に該当するゼロ流量異常は見つかりませんでした。"
                 )
 
-    # --- TAB 3: 統計 ＆ ヒストグラム / 全体バイオリン / 時間帯別Box / 時間帯別バイオリン ---
+    # --- TAB 3: 統計 ＆ 各種分布解析 ---
     with tab3:
         st.subheader("📊 FT0911 gpm & 移動平均 / 分布解析")
 
@@ -544,8 +544,10 @@ if uploaded_files:
         )
         st.plotly_chart(fig_hourly_box, use_container_width=True)
 
-        # 【今回追加箇所】時間帯別 バイオリンプロット (Violin Plot with Hourly Mean & Color Palette)
-        st.subheader("🎻 Density Distribution of FT0911 gpm by Hour of Day (Violin Plot)")
+        # 時間帯別 バイオリンプロット
+        st.subheader(
+            "🎻 Density Distribution of FT0911 gpm by Hour of Day (Violin Plot)"
+        )
         fig_hourly_violin = go.Figure()
         colors = px.colors.qualitative.Alphabet
         hourly_means_v = []
@@ -601,6 +603,59 @@ if uploaded_files:
             hovermode="x unified",
         )
         st.plotly_chart(fig_hourly_violin, use_container_width=True)
+
+        # 【今回追加箇所】曜日別 平均FT0911 gpm（標準偏差エラーバー付き）
+        st.subheader("📅 Average FT0911 gpm by Day of Week")
+
+        daily_stats_gpm = (
+            data.groupby("Day of Week")["FT0911 gpm"]
+            .agg(["mean", "std"])
+            .reset_index()
+        )
+        daily_stats_gpm.rename(
+            columns={"mean": "Mean FT0911 gpm", "std": "Std FT0911 gpm"},
+            inplace=True,
+        )
+
+        day_order = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
+        daily_stats_gpm["Day of Week"] = pd.Categorical(
+            daily_stats_gpm["Day of Week"], categories=day_order, ordered=True
+        )
+        daily_stats_gpm = daily_stats_gpm.sort_values("Day of Week")
+
+        fig_day_bar = px.bar(
+            daily_stats_gpm,
+            x="Day of Week",
+            y="Mean FT0911 gpm",
+            error_y="Std FT0911 gpm",
+            title="Average FT0911 gpm by Day of Week with Standard Deviation",
+            labels={"Mean FT0911 gpm": "Average FT0911 gpm"},
+            color="Day of Week",
+            color_discrete_sequence=px.colors.qualitative.Plotly,
+        )
+
+        fig_day_bar.update_layout(
+            title_x=0.5,
+            yaxis_title="Average FT0911 gpm",
+            xaxis_title="Day of Week",
+        )
+
+        fig_day_bar.update_traces(
+            marker_line_color="black",
+            marker_line_width=1,
+            texttemplate="%{y:.2f}",
+            textposition="outside",
+        )
+
+        st.plotly_chart(fig_day_bar, use_container_width=True)
 
 else:
     st.info("👈 左側のサイドバーからSoftnerログCSVファイルをアップロードしてください。")

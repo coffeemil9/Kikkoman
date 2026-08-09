@@ -137,16 +137,19 @@ event_dates_for_PP1 = {
     "2026-08-08 10:40:00": "Seal Water Preassure Low",
 }
 
-event_dates_for_PP2 = {
-    "2025-11-14 08:00:00": "PP2 Bug <br> Filter <br> Issue and Solved",
-    "2025-11-11 08:00:00": "Something <br> Wrong <br> With Pressure",
-    "2026-02-01 08:00:00": "PP2 Puffing Exhaust <br> Something Wrong",
-    "2026-02-18 07:00:00": "PP2 GearBox Changed <br> PP2 Mechanical Seal <br> Replacements <br> Super Heater <br> PM Conducted",
-    "2026-03-19 13:00:00": "PP2 Changed BRV (High raw material clogging)",
-    "2026-03-31 14:00:00": "PP2 Make UP Steam Control Fix",
-    "2026-04-27 07:00:00": "PP2 Changed BRV <br> Due to High Current of BRV",
-    "2026-07-03 12:30:00": "temporary power outage",
-    "2026-07-08 16:00:00": "Start to process soy",
+event_dates_for_PP2={
+    '2025-11-14 08:00:00': "PP2 Bug <br> Filtter <br> Issue and Solved ",
+    '2025-11-11 08:00:00': "Something <br> Wrong <BR> With Pressure",
+    '2026-02-01 08:00:00': "PP2 Puffing Exhaust <br> Something Wrong",
+    '2026-02-18 07:00:00': "PP2 GearBox Changed <br> PP2 Mechanical Seal <br> Replacements <br> Super Heater <br> PM Conducted",
+    '2026-03-19 13:00:00': "PP2 Changed BRV", # この時のBRVのポケットには、多くの原料が詰まっていた。サイドパッキン、グランドパッキンの調整方法が不均一だった。
+    '2026-03-31 14:00:00': "PP2 Make UP Steam Control Fix",
+    '2026-04-27 7:00:00': "PP2 Changed BRV <br> Due to High Current of BRV",
+    '2026-07-03 12:30:00': "temporary power outage",
+    '2026-07-08 16:00:00': "Start to process soy",
+    '2026-07-17 08:00:00': "Seal Water Pump Exchange",
+    '2026-07-17 13:00:00': "Seal Water Pressure Sensore Exchange",
+
 }
 
 # ---------------------------------------------------------

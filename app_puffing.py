@@ -65,15 +65,13 @@ column_mapping_PP1 = {
     'PT2103': 'CB Seal Water Pressure (PSI) PT2103',
     'FT2103': 'CB Seal Water Flow Rate Driven Side (GPM) FT2103',
     'FT2113': 'CB Seal Water Flow Rate Non-Driven Side (GPM) FT2113',
-    'TT1_2006': 'CB Seal Water Temp Driven Side (F)? TT1_2006', # Adam 調査必要
-    'TT2_2006': 'CB Seal Water Temp Non-Driven Side (F)? TT1_2006', # Adam 調査必要
-    'TT3_2006': 'CB Bearling Cooling Water Temp (F)? TT1_2006', # Adam 調査必要
+    'TT1_2006': 'CB Seal Water Temp Driven Side (F)? TT1_2006',
+    'TT2_2006': 'CB Seal Water Temp Non-Driven Side (F)? TT1_2006',
+    'TT3_2006': 'CB Bearling Cooling Water Temp (F)? TT1_2006',
 
     'FT2101': 'CB Bearling Cooling Water Flow Rate (GPM) FT2101',
 
     'PT2205': 'CB Seal Water Back Up Tank Air Pressure (PSI) PT2205',
-
-
 }
 
 column_mapping_PP2 = {
@@ -137,25 +135,23 @@ event_dates_for_PP1 = {
     "2026-08-08 10:40:00": "Seal Water Preassure Low",
 }
 
-event_dates_for_PP2={
+event_dates_for_PP2 = {
     '2025-11-14 08:00:00': "PP2 Bug <br> Filtter <br> Issue and Solved ",
     '2025-11-11 08:00:00': "Something <br> Wrong <BR> With Pressure",
     '2026-02-01 08:00:00': "PP2 Puffing Exhaust <br> Something Wrong",
     '2026-02-18 07:00:00': "PP2 GearBox Changed <br> PP2 Mechanical Seal <br> Replacements <br> Super Heater <br> PM Conducted",
-    '2026-03-19 13:00:00': "PP2 Changed BRV", # この時のBRVのポケットには、多くの原料が詰まっていた。サイドパッキン、グランドパッキンの調整方法が不均一だった。
+    '2026-03-19 13:00:00': "PP2 Changed BRV",
     '2026-03-31 14:00:00': "PP2 Make UP Steam Control Fix",
-    '2026-04-27 7:00:00': "PP2 Changed BRV <br> Due to High Current of BRV",
+    '2026-04-27 07:00:00': "PP2 Changed BRV <br> Due to High Current of BRV",
     '2026-07-03 12:30:00': "temporary power outage",
     '2026-07-08 16:00:00': "Start to process soy",
     '2026-07-17 08:00:00': "Seal Water Pump Exchange",
     '2026-07-17 13:00:00': "Seal Water Pressure Sensore Exchange",
-
 }
 
 # ---------------------------------------------------------
 # DATA PROCESSING HELPER FUNCTIONS
 # ---------------------------------------------------------
-
 
 def process_dataframe(df, column_mapping):
     """Clean, rename, parse timestamp, and numeric-convert the given DataFrame."""
@@ -199,7 +195,7 @@ def process_dataframe(df, column_mapping):
 
 
 def add_event_history_annotations(fig, plot_data, event_dates):
-    """Add red dashed vertical lines and event annotations."""
+    """Add red dashed vertical lines and event annotations across all subplots."""
     if plot_data.empty or "TimeStamp" not in plot_data.columns:
         return
 
@@ -209,16 +205,13 @@ def add_event_history_annotations(fig, plot_data, event_dates):
     for date_str, text in event_dates.items():
         event_date = pd.to_datetime(date_str)
         if min_plot_date <= event_date <= max_plot_date:
-            fig.add_shape(
-                type="line",
-                x0=event_date,
-                y0=0,
-                x1=event_date,
-                y1=1,
-                xref="x",
-                yref="paper",
-                line=dict(color="red", width=2, dash="dash"),
+            fig.add_vline(
+                x=event_date,
+                line_width=1.5,
+                line_dash="dash",
+                line_color="red",
             )
+            # アノテーション（イベント名）を最上部に表示
             fig.add_annotation(
                 x=event_date,
                 y=1,
@@ -227,6 +220,7 @@ def add_event_history_annotations(fig, plot_data, event_dates):
                 text=text,
                 showarrow=False,
                 yshift=10,
+                font=dict(size=10, color="red"),
             )
 
 
@@ -275,7 +269,7 @@ if uploaded_files:
         tmp = pd.read_csv(file, low_memory=False)
         raw_data = pd.concat([raw_data, tmp], axis=0)
 
-# 2. Auto-load from GitHub Repository (Updated Paths to data/Puffing#1 & data/Puffing#2)
+# 2. Auto-load from GitHub Repository
 else:
     if puffing_target == "Puffing #1":
         search_dir = "data/Puffing#1"
@@ -286,7 +280,6 @@ else:
 
     search_paths = []
     
-    # Direct directory scan for exact folder name matching
     if os.path.exists(search_dir):
         for fname in os.listdir(search_dir):
             if fname.endswith(".csv"):
@@ -362,8 +355,8 @@ if not raw_data.empty:
         # Navigation Tabs
         tab1, tab2, tab3, tab4 = st.tabs(
             [
-                "📈 Single Tag Trend",
-                "🔀 Multi-Tag Comparison",
+                "📈 Multi-Graph Trend",
+                "🔀 Overlaid Multi-Tag",
                 "📅 Maintenance & Event Logs",
                 "📋 Raw Data Table",
             ]
@@ -373,130 +366,136 @@ if not raw_data.empty:
             col for col in plot_data.columns if col != "TimeStamp"
         ]
 
-        # --- TAB 1: Single Tag Trend ---
+        # --- TAB 1: Multi-Graph Subplots (複数グラフ縦並び) ---
         with tab1:
-            st.subheader(f"Single Variable Analysis ({puffing_target})")
-            selected_tag = st.selectbox(
-                "Select Tag to Plot:", available_tags, index=0
-            )
+            st.subheader(f"Multi-Graph Trend Analysis ({puffing_target})")
 
-            fig1 = go.Figure()
-            fig1.add_trace(
-                go.Scatter(
-                    x=plot_data["TimeStamp"],
-                    y=plot_data[selected_tag],
-                    mode="lines",
-                    name=selected_tag,
-                )
+            selected_tags = st.multiselect(
+                "Select Tags to Plot (Each gets its own synchronized graph):",
+                available_tags,
+                default=available_tags[:2] if len(available_tags) >= 2 else available_tags,
             )
 
             include_feed_rate = st.checkbox(
-                "Overlay Feed Rate (if available)", value=False
+                "Overlay Feed Rate on all graphs (if available)", value=False
             )
-            if include_feed_rate and "Feed Rate" in plot_data.columns:
-                fig1.add_trace(
-                    go.Scatter(
-                        x=plot_data["TimeStamp"],
-                        y=plot_data["Feed Rate"],
-                        mode="lines",
-                        name="Feed Rate",
-                    )
+
+            if not selected_tags:
+                st.warning("Please select at least one tag to display.")
+            else:
+                num_tags = len(selected_tags)
+
+                # 選択したタグの数だけサブプロットを作成 (時間軸連動: shared_xaxes=True)
+                fig1 = make_subplots(
+                    rows=num_tags,
+                    cols=1,
+                    shared_xaxes=True,
+                    vertical_spacing=0.08 / max(1, num_tags - 1) if num_tags > 1 else 0.05,
+                    subplot_titles=[f"Tag: {t}" for t in selected_tags],
                 )
 
-            fig1.update_layout(
-                title=dict(
-                    text=f"{puffing_target} - {selected_tag} Over Time", x=0.5
-                ),
-                xaxis_title="Time",
-                yaxis_title=selected_tag,
-                xaxis_type="date",
-                legend=dict(
-                    orientation="h",
-                    yanchor="top",
-                    y=-0.2,
-                    xanchor="center",
-                    x=0.5,
-                ),
-                height=600,
-            )
+                feed_col = [c for c in plot_data.columns if "Feed Rate" in c]
 
-            add_event_history_annotations(fig1, plot_data, event_dates)
-            st.plotly_chart(fig1, use_container_width=True)
-
-        # --- TAB 2: Multi-Tag Comparison ---
-        with tab2:
-            st.subheader(f"Multi-Variable Comparison ({puffing_target})")
-
-            col_tag1, col_tag2 = st.columns(2)
-            tag1 = col_tag1.selectbox(
-                "Select Primary Tag (Left Y-Axis):",
-                available_tags,
-                index=0,
-                key="tag1",
-            )
-            tag2 = col_tag2.selectbox(
-                "Select Secondary Tag (Right Y-Axis):",
-                available_tags,
-                index=min(1, len(available_tags) - 1),
-                key="tag2",
-            )
-
-            use_sec_y = st.checkbox("Use Secondary Y-Axis", value=True)
-
-            fig2 = make_subplots(specs=[[{"secondary_y": use_sec_y}]])
-            fig2.add_trace(
-                go.Scatter(
-                    x=plot_data["TimeStamp"],
-                    y=plot_data[tag1],
-                    mode="lines",
-                    name=tag1,
-                ),
-                secondary_y=False,
-            )
-            fig2.add_trace(
-                go.Scatter(
-                    x=plot_data["TimeStamp"],
-                    y=plot_data[tag2],
-                    mode="lines",
-                    name=tag2,
-                ),
-                secondary_y=use_sec_y,
-            )
-
-            if "Feed Rate" in plot_data.columns:
-                overlay_feed = st.checkbox(
-                    "Include Feed Rate", value=False, key="feed_rate_tab2"
-                )
-                if overlay_feed:
-                    fig2.add_trace(
+                for idx, tag in enumerate(selected_tags, start=1):
+                    # 主データ
+                    fig1.add_trace(
                         go.Scatter(
                             x=plot_data["TimeStamp"],
-                            y=plot_data["Feed Rate"],
+                            y=plot_data[tag],
                             mode="lines",
-                            name="Feed Rate",
+                            name=tag,
                         ),
-                        secondary_y=False,
+                        row=idx,
+                        col=1,
                     )
+
+                    # オプション: Feed Rate の重ね順（各サブプロットに描画）
+                    if include_feed_rate and feed_col:
+                        fig1.add_trace(
+                            go.Scatter(
+                                x=plot_data["TimeStamp"],
+                                y=plot_data[feed_col[0]],
+                                mode="lines",
+                                name="Feed Rate",
+                                line=dict(dash="dot", color="gray"),
+                                opacity=0.6,
+                            ),
+                            row=idx,
+                            col=1,
+                        )
+
+                # 表示件数に応じた高さ自動計算
+                fig1.update_layout(
+                    height=max(400, 300 * num_tags),
+                    title_text=f"{puffing_target} - Individual Trends (Synchronized X-Axis)",
+                    showlegend=False,
+                    xaxis_type="date",
+                )
+
+                add_event_history_annotations(fig1, plot_data, event_dates)
+                st.plotly_chart(fig1, use_container_width=True)
+
+        # --- TAB 2: Multi-Tag Comparison (左右2軸で複数重ね合わせ) ---
+        with tab2:
+            st.subheader(f"Overlaid Multi-Variable Comparison ({puffing_target})")
+
+            col_tag1, col_tag2 = st.columns(2)
+            tags_left = col_tag1.multiselect(
+                "Select Left Y-Axis Tags:",
+                available_tags,
+                default=[available_tags[0]] if available_tags else [],
+                key="tags_left",
+            )
+            tags_right = col_tag2.multiselect(
+                "Select Right Y-Axis Tags:",
+                available_tags,
+                default=[available_tags[1]] if len(available_tags) > 1 else [],
+                key="tags_right",
+            )
+
+            use_sec_y = len(tags_right) > 0
+
+            fig2 = make_subplots(specs=[[{"secondary_y": use_sec_y}]])
+
+            # 左Y軸
+            for t_left in tags_left:
+                fig2.add_trace(
+                    go.Scatter(
+                        x=plot_data["TimeStamp"],
+                        y=plot_data[t_left],
+                        mode="lines",
+                        name=f"[L] {t_left}",
+                    ),
+                    secondary_y=False,
+                )
+
+            # 右Y軸
+            for t_right in tags_right:
+                fig2.add_trace(
+                    go.Scatter(
+                        x=plot_data["TimeStamp"],
+                        y=plot_data[t_right],
+                        mode="lines",
+                        name=f"[R] {t_right}",
+                    ),
+                    secondary_y=True,
+                )
 
             fig2.update_layout(
                 title=dict(
-                    text=f"{puffing_target} - {tag1} vs {tag2} Over Time",
+                    text=f"{puffing_target} - Overlaid Comparison Plot",
                     x=0.5,
                 ),
                 xaxis_title="Time",
                 legend=dict(
                     orientation="h",
                     yanchor="top",
-                    y=-0.2,
+                    y=-0.15,
                     xanchor="center",
                     x=0.5,
                 ),
                 height=650,
             )
-
-            if use_sec_y:
-                fig2.update_yaxes(title_text=tag1, secondary_y=False)
-                fig2.update_yaxes(title_text=tag2, secondary_y=True)
 
             add_event_history_annotations(fig2, plot_data, event_dates)
             st.plotly_chart(fig2, use_container_width=True)

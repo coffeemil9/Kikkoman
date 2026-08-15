@@ -1354,10 +1354,12 @@ if not data.empty:
             '2026-06-18 09:00:00': "GF RUN",
             '2026-06-19 09:00:00': "GF RUN",
             '2026-06-25 09:00:00': "Softener#1 not working?",
-            '2026-06-29 08:00:00': "Adjusted the valve for softener#3",
+            '2026-06-29 08:00:00': "Adjusted the Opening Rate for Menual Valve for Softener#3",
             '2026-07-16 09:00:00': "GF RUN",
             '2026-07-16 08:00:00': "Softener#2 not working?",
             '2026-07-17 09:00:00': "GF RUN",
+            '2026-07-31 09:00:00': "Changed paddle wheel pick-ups for flow indication on softeners 2 and 3",
+
         }
 
         # DataFrameの作成と整形

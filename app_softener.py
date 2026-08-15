@@ -1115,99 +1115,99 @@ if not data.empty:
             )
 
             st.plotly_chart(fig_day_hourly_v, use_container_width=True)
-        # --- TAB 4 内に追加するコード ---
 
-st.markdown("---")
-st.subheader("⏱️ Daytime In-Service Flow Rate Metrics (07:00 - 17:00)")
-st.write(
-    "Calculates mean flow rate and standard deviation for each softener during active service between 07:00 and 17:00."
-)
+            # --- TAB 4 内に追加するコード ---
+            st.markdown("---")
+            st.subheader("⏱️ Daytime In-Service Flow Rate Metrics (07:00 - 17:00)")
+            st.write(
+                "Calculates mean flow rate and standard deviation for each softener during active service between 07:00 and 17:00."
+            )
 
-# 1. フィルタリング用の時間設定 UI (サイドバーやコードで固定、もしくはユーザーが変更可能に)
-col_time1, col_time2 = st.columns(2)
-start_time_filter = col_time1.time_input(
-    "Start Time Filter", time(7, 0, 0), key="daytime_start"
-)
-end_time_filter = col_time2.time_input(
-    "End Time Filter", time(17, 0, 0), key="daytime_end"
-)
+            # 1. フィルタリング用の時間設定 UI (サイドバーやコードで固定、もしくはユーザーが変更可能に)
+            col_time1, col_time2 = st.columns(2)
+            start_time_filter = col_time1.time_input(
+                "Start Time Filter", time(7, 0, 0), key="daytime_start"
+            )
+            end_time_filter = col_time2.time_input(
+                "End Time Filter", time(17, 0, 0), key="daytime_end"
+            )
 
-# 2. 条件フィルタリング
-time_mask = (data["Datetime"].dt.time >= start_time_filter) & (
-    data["Datetime"].dt.time < end_time_filter
-)
+            # 2. 条件フィルタリング
+            time_mask = (data["Datetime"].dt.time >= start_time_filter) & (
+                data["Datetime"].dt.time < end_time_filter
+            )
 
-daytime_stats = []
+            daytime_stats = []
 
-for i in [1, 2, 3]:
-    mode_col = f"Softner{i} Mode"
-    rate_col = f"Softener{i} Flow Rate gpm"
+            for i in [1, 2, 3]:
+                mode_col = f"Softner{i} Mode"
+                rate_col = f"Softener{i} Flow Rate gpm"
 
-    # モードが 2 (IN SERVICE) かつ 指定時間帯のデータを抽出
-    condition = (data[mode_col] == 2) & time_mask
-    filtered_rates = data.loc[condition, rate_col]
+                # モードが 2 (IN SERVICE) かつ 指定時間帯のデータを抽出
+                condition = (data[mode_col] == 2) & time_mask
+                filtered_rates = data.loc[condition, rate_col]
 
-    mean_val = filtered_rates.mean() if not filtered_rates.empty else 0
-    std_val = filtered_rates.std() if not filtered_rates.empty else 0
+                mean_val = filtered_rates.mean() if not filtered_rates.empty else 0
+                std_val = filtered_rates.std() if not filtered_rates.empty else 0
 
-    daytime_stats.append(
-        {
-            "Softener": f"Softener {i}",
-            "Mean Flow Rate (GPM)": mean_val,
-            "Standard Deviation (GPM)": std_val,
-        }
-    )
+                daytime_stats.append(
+                    {
+                        "Softener": f"Softener {i}",
+                        "Mean Flow Rate (GPM)": mean_val,
+                        "Standard Deviation (GPM)": std_val,
+                    }
+                )
 
-flow_data = pd.DataFrame(daytime_stats)
+            flow_data = pd.DataFrame(daytime_stats)
 
-# 3. Streamlit Metric カードで結果を数値表示
-m_col1, m_col2, m_col3 = st.columns(3)
-for idx, row in flow_data.iterrows():
-    col = [m_col1, m_col2, m_col3][idx]
-    col.metric(
-        label=f"{row['Softener']} ({start_time_filter.strftime('%H:%M')}-{end_time_filter.strftime('%H:%M')})",
-        value=f"{row['Mean Flow Rate (GPM)']:.2f} GPM",
-        delta=f"Std: {row['Standard Deviation (GPM)']:.2f}",
-        delta_color="off",
-    )
+            # 3. Streamlit Metric カードで結果を数値表示
+            m_col1, m_col2, m_col3 = st.columns(3)
+            for idx, row in flow_data.iterrows():
+                col = [m_col1, m_col2, m_col3][idx]
+                col.metric(
+                    label=f"{row['Softener']} ({start_time_filter.strftime('%H:%M')}-{end_time_filter.strftime('%H:%M')})",
+                    value=f"{row['Mean Flow Rate (GPM)']:.2f} GPM",
+                    delta=f"Std: {row['Standard Deviation (GPM)']:.2f}",
+                    delta_color="off",
+                )
 
-# 4. Plotly 棒グラフの描画
-fig_daytime_flow = px.bar(
-    flow_data,
-    x="Softener",
-    y="Mean Flow Rate (GPM)",
-    error_y="Standard Deviation (GPM)",
-    title=f"Mean Flow Rate with Std Dev ({start_time_filter.strftime('%H:%M')} - {end_time_filter.strftime('%H:%M')})",
-    labels={"Mean Flow Rate (GPM)": "Mean Flow Rate (GPM)"},
-    color="Softener",
-    color_discrete_sequence=["blue", "red", "green"],
-)
+            # 4. Plotly 棒グラフの描画
+            fig_daytime_flow = px.bar(
+                flow_data,
+                x="Softener",
+                y="Mean Flow Rate (GPM)",
+                error_y="Standard Deviation (GPM)",
+                title=f"Mean Flow Rate with Std Dev ({start_time_filter.strftime('%H:%M')} - {end_time_filter.strftime('%H:%M')})",
+                labels={"Mean Flow Rate (GPM)": "Mean Flow Rate (GPM)"},
+                color="Softener",
+                color_discrete_sequence=["blue", "red", "green"],
+            )
 
-fig_daytime_flow.update_layout(
-    title_x=0.5,
-    yaxis_title="Mean Flow Rate (GPM)",
-    xaxis_title="Softener",
-)
+            fig_daytime_flow.update_layout(
+                title_x=0.5,
+                yaxis_title="Mean Flow Rate (GPM)",
+                xaxis_title="Softener",
+            )
 
-fig_daytime_flow.update_traces(
-    marker_line_color="black",
-    marker_line_width=1,
-    marker_opacity=0.6,
-    texttemplate="%{y:.2f}",
-    textposition="outside",
-)
+            fig_daytime_flow.update_traces(
+                marker_line_color="black",
+                marker_line_width=1,
+                marker_opacity=0.6,
+                texttemplate="%{y:.2f}",
+                textposition="outside",
+            )
 
-# Streamlit 上で表示
-st.plotly_chart(fig_daytime_flow, use_container_width=True)
+            # Streamlit 上で表示
+            st.plotly_chart(fig_daytime_flow, use_container_width=True)
 
-# 5. 考察メモ (呼び出し注意・テキストブロック)
-st.info(
-    """
-💡 **Analysis Notes:**
-* The flow rate of **Softener 3** is lower than Softener 1 and Softener 2.
-* During peak operation when Softener 3 is active alongside other units under high demand, a water supply deficit or pressure drop may occur.
-"""
-)
+            # 5. 考察メモ (呼び出し注意・テキストブロック)
+            st.info(
+                """
+            💡 **Analysis Notes:**
+            * The flow rate of **Softener 3** is lower than Softener 1 and Softener 2.
+            * During peak operation when Softener 3 is active alongside other units under high demand, a water supply deficit or pressure drop may occur.
+            """
+            )
     # --- TAB 5: Event Log ---
     with tab5:
         st.subheader("📝 Manual Event Log Analysis")

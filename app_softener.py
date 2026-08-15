@@ -538,6 +538,121 @@ if not data.empty:
                     f"{name}: No zero flow anomalies found matching the specified duration ({min_dur}+ mins)."
                 )
 
+        # ---------------------------------------------------------
+        # PROLONGED ZERO FLOW (ANOMALY) EXCLUDED ANALYSIS
+        # ---------------------------------------------------------
+        st.markdown("---")
+        st.subheader(
+            "📊 Effective Mean Flow Rate (Excluding Prolonged Zero Flow Anomalies)"
+        )
+        st.write(
+            "Calculates the true average flow rate by excluding extended periods where the softener was 'IN SERVICE' but recorded 0 GPM flow."
+        )
+
+        col_ex1, col_ex2 = st.columns(2)
+        min_zero_dur_filter = col_ex1.number_input(
+            "Anomaly Threshold to Exclude (Minutes >=)",
+            min_value=1,
+            value=30,
+            step=5,
+            key="ex_zero_dur",
+        )
+
+        # 07:00 - 17:00 などの時間帯フィルタも適用する場合は選択肢を設ける
+        apply_time_filter = col_ex2.checkbox(
+            "Apply Daytime Filter (07:00 - 17:00)", value=True
+        )
+
+        # 時間帯マスクの作成
+        if apply_time_filter:
+            time_mask_ex = (data["Datetime"].dt.time >= time(7, 0, 0)) & (
+                data["Datetime"].dt.time < time(17, 0, 0)
+            )
+        else:
+            time_mask_ex = pd.Series(True, index=data.index)
+
+        filtered_stats_data = []
+
+        for i in [1, 2, 3]:
+            mode_col = f"Softner{i} Mode"
+            rate_col = f"Softener{i} Flow Rate gpm"
+
+            # 1. 指定の Prolonged Zero Flow イベント（異常時間帯）を検出
+            events = find_prolonged_zero_flow_events(
+                data, rate_col, mode_col, min_zero_dur_filter
+            )
+
+            # 2. 異常イベントに該当するタイムスタンプのマスクを作成
+            anomaly_mask = pd.Series(False, index=data.index)
+            for ev in events:
+                anomaly_mask |= (data["Datetime"] >= ev["Start Time"]) & (
+                    data["Datetime"] <= ev["End Time"]
+                )
+
+            # 3. 正常なデータのみをフィルタリング (In Service かつ 異常時間帯除外 かつ 時間帯フィルタ)
+            valid_condition = (
+                (data[mode_col] == 2) & (~anomaly_mask) & time_mask_ex
+            )
+            valid_rates = data.loc[valid_condition, rate_col]
+
+            # 4. 統計値の計算
+            mean_val = valid_rates.mean() if not valid_rates.empty else 0
+            std_val = valid_rates.std() if not valid_rates.empty else 0
+            valid_count_hours = (len(valid_rates) * 1) / 60  # 1分ログ想定の稼働時間(h)
+
+            filtered_stats_data.append(
+                {
+                    "Softener": f"Softener {i}",
+                    "Effective Mean Flow (GPM)": mean_val,
+                    "Standard Deviation (GPM)": std_val,
+                    "Valid Operating Hours": valid_count_hours,
+                }
+            )
+
+        df_effective_flow = pd.DataFrame(filtered_stats_data)
+
+        # 数値カード表示 (Metrics)
+        c_m1, c_m2, c_m3 = st.columns(3)
+        for idx, row in df_effective_flow.iterrows():
+            col = [c_m1, c_m2, c_m3][idx]
+            col.metric(
+                label=f"{row['Softener']} (Excl. >={min_zero_dur_filter}m Zero Flow)",
+                value=f"{row['Effective Mean Flow (GPM)']:.2f} GPM",
+                delta=f"Std: {row['Standard Deviation (GPM)']:.2f}",
+                delta_color="off",
+            )
+
+        # 棒グラフの描画
+        fig_effective_flow = px.bar(
+            df_effective_flow,
+            x="Softener",
+            y="Effective Mean Flow (GPM)",
+            error_y="Standard Deviation (GPM)",
+            title=f"Effective Mean Flow Rate per Softener (Excluding Zero Flow Events >= {min_zero_dur_filter} mins)",
+            labels={"Effective Mean Flow (GPM)": "Mean Flow Rate (GPM)"},
+            color="Softener",
+            color_discrete_sequence=["blue", "red", "green"],
+        )
+
+        fig_effective_flow.update_layout(
+            title_x=0.5,
+            yaxis_title="Effective Mean Flow Rate (GPM)",
+            xaxis_title="Softener",
+        )
+
+        fig_effective_flow.update_traces(
+            marker_line_color="black",
+            marker_line_width=1,
+            marker_opacity=0.6,
+            texttemplate="%{y:.2f}",
+            textposition="outside",
+        )
+
+        st.plotly_chart(fig_effective_flow, use_container_width=True)
+
+        st.success(
+            f"✅ Successfully filtered out zero-flow anomalies longer than {min_zero_dur_filter} minutes to reflect actual operational flow rates."
+        )
     # --- TAB 3: Low Tank & Single Softener Flow Event Analysis ---
     with tab3:
         st.subheader("🛢️ Low Tank Level & Single Softener Flow Events")
@@ -1000,7 +1115,99 @@ if not data.empty:
             )
 
             st.plotly_chart(fig_day_hourly_v, use_container_width=True)
+        # --- TAB 4 内に追加するコード ---
 
+st.markdown("---")
+st.subheader("⏱️ Daytime In-Service Flow Rate Metrics (07:00 - 17:00)")
+st.write(
+    "Calculates mean flow rate and standard deviation for each softener during active service between 07:00 and 17:00."
+)
+
+# 1. フィルタリング用の時間設定 UI (サイドバーやコードで固定、もしくはユーザーが変更可能に)
+col_time1, col_time2 = st.columns(2)
+start_time_filter = col_time1.time_input(
+    "Start Time Filter", time(7, 0, 0), key="daytime_start"
+)
+end_time_filter = col_time2.time_input(
+    "End Time Filter", time(17, 0, 0), key="daytime_end"
+)
+
+# 2. 条件フィルタリング
+time_mask = (data["Datetime"].dt.time >= start_time_filter) & (
+    data["Datetime"].dt.time < end_time_filter
+)
+
+daytime_stats = []
+
+for i in [1, 2, 3]:
+    mode_col = f"Softner{i} Mode"
+    rate_col = f"Softener{i} Flow Rate gpm"
+
+    # モードが 2 (IN SERVICE) かつ 指定時間帯のデータを抽出
+    condition = (data[mode_col] == 2) & time_mask
+    filtered_rates = data.loc[condition, rate_col]
+
+    mean_val = filtered_rates.mean() if not filtered_rates.empty else 0
+    std_val = filtered_rates.std() if not filtered_rates.empty else 0
+
+    daytime_stats.append(
+        {
+            "Softener": f"Softener {i}",
+            "Mean Flow Rate (GPM)": mean_val,
+            "Standard Deviation (GPM)": std_val,
+        }
+    )
+
+flow_data = pd.DataFrame(daytime_stats)
+
+# 3. Streamlit Metric カードで結果を数値表示
+m_col1, m_col2, m_col3 = st.columns(3)
+for idx, row in flow_data.iterrows():
+    col = [m_col1, m_col2, m_col3][idx]
+    col.metric(
+        label=f"{row['Softener']} ({start_time_filter.strftime('%H:%M')}-{end_time_filter.strftime('%H:%M')})",
+        value=f"{row['Mean Flow Rate (GPM)']:.2f} GPM",
+        delta=f"Std: {row['Standard Deviation (GPM)']:.2f}",
+        delta_color="off",
+    )
+
+# 4. Plotly 棒グラフの描画
+fig_daytime_flow = px.bar(
+    flow_data,
+    x="Softener",
+    y="Mean Flow Rate (GPM)",
+    error_y="Standard Deviation (GPM)",
+    title=f"Mean Flow Rate with Std Dev ({start_time_filter.strftime('%H:%M')} - {end_time_filter.strftime('%H:%M')})",
+    labels={"Mean Flow Rate (GPM)": "Mean Flow Rate (GPM)"},
+    color="Softener",
+    color_discrete_sequence=["blue", "red", "green"],
+)
+
+fig_daytime_flow.update_layout(
+    title_x=0.5,
+    yaxis_title="Mean Flow Rate (GPM)",
+    xaxis_title="Softener",
+)
+
+fig_daytime_flow.update_traces(
+    marker_line_color="black",
+    marker_line_width=1,
+    marker_opacity=0.6,
+    texttemplate="%{y:.2f}",
+    textposition="outside",
+)
+
+# Streamlit 上で表示
+st.plotly_chart(fig_daytime_flow, use_container_width=True)
+
+# 5. 考察メモ (呼び出し注意・テキストブロック)
+st.info(
+    """
+💡 **Analysis Notes:**
+* The flow rate of **Softener 3** is lower than Softener 1 and Softener 2.
+* During peak operation when Softener 3 is active alongside other units under high demand, a water supply deficit or pressure drop may occur.
+"""
+)
     # --- TAB 5: Event Log ---
     with tab5:
         st.subheader("📝 Manual Event Log Analysis")

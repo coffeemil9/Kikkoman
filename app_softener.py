@@ -223,6 +223,7 @@ def plot_process_trends(filtered_data, start_datetime, end_datetime):
         col=1,
         secondary_y=False,
         showgrid=True,
+        range=[0,100]
     )
     fig.update_yaxes(secondary_y=True, row=3, col=1, **mode_axis_config)
 

@@ -1208,6 +1208,143 @@ if not data.empty:
             * During peak operation when Softener 3 is active alongside other units under high demand, a water supply deficit or pressure drop may occur.
             """
             )
+            # ---------------------------------------------------------
+        # CUSTOM DATETIME RANGE & ANOMALY EXCLUDED FLOW ANALYSIS
+        # ---------------------------------------------------------
+        st.markdown("---")
+        st.subheader("📅 Custom Date-Time Range Softener Flow Analysis")
+        st.write(
+            "Analyze effective flow rates for each softener within a custom date/time range, with options to filter operational hours and exclude zero-flow anomalies."
+        )
+
+        min_dt_custom = data["Datetime"].min()
+        max_dt_custom = data["Datetime"].max()
+
+        # 1. 日付・時刻区間の指定 (2列×2行レイアウト)
+        col_cd1, col_ct1, col_cd2, col_ct2 = st.columns(4)
+        c_start_date = col_cd1.date_input("Analysis Start Date", min_dt_custom.date(), key="c_sd")
+        c_start_time = col_ct1.time_input("Analysis Start Time", time(0, 0), key="c_st")
+        c_end_date = col_cd2.date_input("Analysis End Date", max_dt_custom.date(), key="c_ed")
+        c_end_time = col_ct2.time_input("Analysis End Time", time(23, 59), key="c_et")
+
+        custom_start_dt = pd.to_datetime(f"{c_start_date} {c_start_time}")
+        custom_end_dt = pd.to_datetime(f"{c_end_date} {c_end_time}")
+
+        # 2. 絞り込み条件・フラグ設定
+        col_opt1, col_opt2, col_opt3 = st.columns(3)
+
+        # 時間帯フィルターの有効化
+        use_hourly_filter = col_opt1.checkbox("Limit Daily Operating Hours", value=True)
+
+        # 長時間ゼロ流量の除外フラグ
+        exclude_zero_anomalies = col_opt2.checkbox("Exclude Prolonged Zero Flow", value=True)
+
+        # ゼロ流量異常の判定閾値 (分)
+        zero_threshold_min = col_opt3.number_input(
+            "Zero Flow Anomaly Threshold (mins >=)",
+            min_value=1,
+            value=30,
+            step=5,
+            disabled=not exclude_zero_anomalies,
+        )
+
+        # 3. 日常時間帯 (Operating Hours) 設定 (チェック有効時のみ)
+        if use_hourly_filter:
+            c_h1, c_h2 = st.columns(2)
+            daily_start_time = c_h1.time_input("Daily Operating Start", time(7, 0, 0), key="d_st")
+            daily_end_time = c_h2.time_input("Daily Operating End", time(17, 0, 0), key="d_et")
+
+        # --- データのフィルタリング処理 ---
+        # 期間条件 (Datetime)
+        dt_range_mask = (data["Datetime"] >= custom_start_dt) & (data["Datetime"] <= custom_end_dt)
+
+        # 時間帯条件 (Time of Day)
+        if use_hourly_filter:
+            tod_mask = (data["Datetime"].dt.time >= daily_start_time) & (data["Datetime"].dt.time < daily_end_time)
+        else:
+            tod_mask = pd.Series(True, index=data.index)
+
+        custom_stats_list = []
+
+        for i in [1, 2, 3]:
+            mode_col = f"Softner{i} Mode"
+            rate_col = f"Softener{i} Flow Rate gpm"
+
+            # ゼロ流量異常マスクの生成
+            if exclude_zero_anomalies:
+                events = find_prolonged_zero_flow_events(
+                    data, rate_col, mode_col, zero_threshold_min
+                )
+                anomaly_mask = pd.Series(False, index=data.index)
+                for ev in events:
+                    anomaly_mask |= (data["Datetime"] >= ev["Start Time"]) & (
+                        data["Datetime"] <= ev["End Time"]
+                    )
+            else:
+                anomaly_mask = pd.Series(False, index=data.index)
+
+            # 最終抽出条件: In Service (Mode==2) AND 日時期間内 AND 時間帯内 AND 非異常
+            final_condition = (
+                (data[mode_col] == 2) & dt_range_mask & tod_mask & (~anomaly_mask)
+            )
+            
+            target_rates = data.loc[final_condition, rate_col]
+
+            mean_flow = target_rates.mean() if not target_rates.empty else 0
+            std_flow = target_rates.std() if not target_rates.empty else 0
+            sample_count = len(target_rates)
+
+            custom_stats_list.append(
+                {
+                    "Softener": f"Softener {i}",
+                    "Mean Flow Rate (GPM)": mean_flow,
+                    "Standard Deviation (GPM)": std_flow,
+                    "Data Points": sample_count,
+                }
+            )
+
+        df_custom_stats = pd.DataFrame(custom_stats_list)
+
+        # 4. 指標表示 (Metrics)
+        st.write(f"**Selected Analysis Period:** `{custom_start_dt.strftime('%Y-%m-%d %H:%M')}` ➔ `{custom_end_dt.strftime('%Y-%m-%d %H:%M')}`")
+
+        m_c1, m_c2, m_c3 = st.columns(3)
+        for idx, row in df_custom_stats.iterrows():
+            col = [m_c1, m_c2, m_c3][idx]
+            col.metric(
+                label=f"{row['Softener']}",
+                value=f"{row['Mean Flow Rate (GPM)']:.2f} GPM",
+                delta=f"Std: {row['Standard Deviation (GPM)']:.2f} (n={row['Data Points']})",
+                delta_color="off",
+            )
+
+        # 5. グラフ描画
+        fig_custom_flow = px.bar(
+            df_custom_stats,
+            x="Softener",
+            y="Mean Flow Rate (GPM)",
+            error_y="Standard Deviation (GPM)",
+            title=f"Softener Mean Flow Rate ({custom_start_dt.strftime('%Y/%m/%d')} - {custom_end_dt.strftime('%Y/%m/%d')})",
+            labels={"Mean Flow Rate (GPM)": "Mean Flow Rate (GPM)"},
+            color="Softener",
+            color_discrete_sequence=["blue", "red", "green"],
+        )
+
+        fig_custom_flow.update_layout(
+            title_x=0.5,
+            yaxis_title="Mean Flow Rate (GPM)",
+            xaxis_title="Softener",
+        )
+
+        fig_custom_flow.update_traces(
+            marker_line_color="black",
+            marker_line_width=1,
+            marker_opacity=0.6,
+            texttemplate="%{y:.2f}",
+            textposition="outside",
+        )
+
+        st.plotly_chart(fig_custom_flow, use_container_width=True)
     # --- TAB 5: Event Log ---
     with tab5:
         st.subheader("📝 Manual Event Log Analysis")

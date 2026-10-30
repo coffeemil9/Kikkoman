@@ -1237,7 +1237,7 @@ if not data.empty:
             * During peak operation when Softener 3 is active alongside other units under high demand, a water supply deficit or pressure drop may occur.
             """
             )
-            # ---------------------------------------------------------
+        # ---------------------------------------------------------
         # CUSTOM DATETIME RANGE & ANOMALY EXCLUDED FLOW ANALYSIS
         # ---------------------------------------------------------
         st.markdown("---")
@@ -1374,6 +1374,54 @@ if not data.empty:
         )
 
         st.plotly_chart(fig_custom_flow, use_container_width=True)
+
+
+        # ---------------------------------------------------------
+        # Count how many times FT0911 gpm exceeded a specific threshold and identify the Top 10 dates with the most occurrences.
+        # ---------------------------------------------------------
+        st.markdown("---")
+        st.subheader("🚨 FT0911 gpm Threshold Exceedance Analysis")
+        st.write("Count how many times FT0911 gpm exceeded a specific threshold and identify the Top 10 dates with the most occurrences.")
+
+        # 1. ユーザー入力で閾値を設定を変数として受け取る
+        threshold_value = st.number_input("Set FT0911 gpm Threshold", min_value=0.0, value=200.0, step=10.0, key="ft0911_threshold")
+
+        # 2. 閾値を超えたデータを抽出
+        exceeded_data = data[data["FT0911 gpm"] > threshold_value].copy()
+
+        if not exceeded_data.empty:
+            # 3. 日付ごとにグループ化してカウントを集計
+            exceeded_data["Date"] = exceeded_data["Datetime"].dt.date
+            exceed_counts = exceeded_data.groupby("Date").size().reset_index(name="Exceedance Count")
+            
+            # 4. 回数が多いTOP10を抽出して降順にソート
+            top10_exceeds = exceed_counts.sort_values(by="Exceedance Count", ascending=False).head(10)
+            top10_exceeds["Date"] = top10_exceeds["Date"].astype(str) # グラフ描画用に文字列化
+
+            col_t1, col_t2 = st.columns([1, 2])
+            
+            with col_t1:
+                st.write(f"**Top 10 Dates (> {threshold_value} gpm)**")
+                st.dataframe(top10_exceeds, hide_index=True, use_container_width=True)
+                
+            with col_t2:
+                # 5. Plotlyで棒グラフとして描画
+                fig_top10 = px.bar(
+                    top10_exceeds,
+                    x="Date",
+                    y="Exceedance Count",
+                    title=f"Top 10 Dates with Most Exceedances (> {threshold_value} gpm)",
+                    labels={"Date": "Date", "Exceedance Count": "Count"},
+                    text="Exceedance Count"
+                )
+                fig_top10.update_traces(textposition="outside", marker_color="crimson", marker_line_color="black", marker_line_width=1)
+                fig_top10.update_layout(title_x=0.5, xaxis_type='category')
+                st.plotly_chart(fig_top10, use_container_width=True)
+        else:
+            st.success(f"✅ No records found where FT0911 gpm exceeded {threshold_value}.")
+
+
+
     # --- TAB 5: Event Log ---
     with tab5:
         st.subheader("📝 Manual Event Log Analysis")

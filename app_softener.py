@@ -1384,7 +1384,7 @@ if not data.empty:
         st.write("Count how many times FT0911 gpm exceeded a specific threshold and identify the Top 10 dates with the most occurrences.")
 
         # 1. ユーザー入力で閾値を設定を変数として受け取る
-        threshold_value = st.number_input("Set FT0911 gpm Threshold", min_value=0.0, value=200.0, step=10.0, key="ft0911_threshold")
+        threshold_value = st.number_input("Set FT0911 gpm Threshold", min_value=0.0, value=1000.0, step=10.0, key="ft0911_threshold")
 
         # 2. 閾値を超えたデータを抽出
         exceeded_data = data[data["FT0911 gpm"] > threshold_value].copy()

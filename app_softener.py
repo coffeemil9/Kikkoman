@@ -379,46 +379,40 @@ def find_low_tank_single_softener_events(
 # MAIN APP FLOW
 # ---------------------------------------------------------
 
-# Sidebar: File Upload
-st.sidebar.header("📁 Data Loading")
-uploaded_files = st.sidebar.file_uploader(
-    "Upload new Softener Log CSV files (Optional)",
-    type=["csv"],
-    accept_multiple_files=True,
-)
-
-data = pd.DataFrame()
-
-# 1. Manual Upload Priority
-if uploaded_files:
-    st.sidebar.success("Using manually uploaded CSV file(s).")
-    for file in uploaded_files:
-        tmp = pd.read_csv(file)
-        data = pd.concat([data, tmp], axis=0)
-
-# 2. Auto-load from GitHub repo
-else:
-    folder_paths = (
-        glob.glob("data/Softener/*.csv")
-        + glob.glob("data/Softner/*.csv")
-        + glob.glob("data/*.csv")
-        + glob.glob("log*.csv")
-    )
-    folder_paths = sorted(list(set(folder_paths)))
-    folder_paths = [p for p in folder_paths if p != "softener_output_data.csv"]
-
-    if folder_paths:
-        st.sidebar.info(
-            f"Automatically concatenated {len(folder_paths)} CSV file(s) from GitHub repo."
-        )
-        for path in folder_paths:
-            tmp = pd.read_csv(path)
+# キャッシュを利用したデータ読み込み・前処理関数
+@st.cache_data
+def load_and_preprocess_data(uploaded_files_list=None):
+    data = pd.DataFrame()
+    
+    # 1. Manual Upload
+    if uploaded_files_list:
+        for file in uploaded_files_list:
+            # st.file_uploaderのファイルオブジェクトはシーク位置を戻す必要がある場合があります
+            file.seek(0)
+            tmp = pd.read_csv(file)
             data = pd.concat([data, tmp], axis=0)
-    elif os.path.exists("softener_output_data.csv"):
-        st.sidebar.info("Using default 'softener_output_data.csv'.")
-        data = pd.read_csv("softener_output_data.csv")
+    # 2. Auto-load from GitHub repo
+    else:
+        folder_paths = (
+            glob.glob("data/Softener/*.csv")
+            + glob.glob("data/Softner/*.csv")
+            + glob.glob("data/*.csv")
+            + glob.glob("log*.csv")
+        )
+        folder_paths = sorted(list(set(folder_paths)))
+        folder_paths = [p for p in folder_paths if p != "softener_output_data.csv"]
 
-if not data.empty:
+        if folder_paths:
+            for path in folder_paths:
+                tmp = pd.read_csv(path)
+                data = pd.concat([data, tmp], axis=0)
+        elif os.path.exists("softener_output_data.csv"):
+            data = pd.read_csv("softener_output_data.csv")
+            
+    if data.empty:
+        return data
+
+    # 3. Data Cleaning & Feature Engineering
     if "Datetime" in data.columns and not data["Datetime"].isnull().all():
         data["Datetime"] = pd.to_datetime(data["Datetime"])
     else:
@@ -429,7 +423,7 @@ if not data.empty:
     data["Hour"] = data["Datetime"].dt.hour
     data = data.sort_values(by="Datetime").reset_index(drop=True)
 
-    # FLOW RATE CALCULATION & CLEANING
+    # 4. FLOW RATE CALCULATION & CLEANING
     for i in [1, 2, 3]:
         total_col = f"Softner{i} total flow"
         mode_col = f"Softner{i} Mode"
@@ -440,9 +434,41 @@ if not data.empty:
         data.loc[data[rate_col] < 0, rate_col] = np.nan
         data.loc[data[rate_col] > 300, rate_col] = np.nan
 
+    # STEP 5: NaN Imputation with Conditional Mean for Trends
+    for i in [1, 2, 3]:
+        mode_col = f"Softner{i} Mode"
+        rate_col = f"Softener{i} Flow Rate gpm"
+        mean_in_service = data.loc[data[mode_col] == 2, rate_col].mean()
+        data[rate_col].fillna(mean_in_service, inplace=True)
+
+    return data
+
+
+# Sidebar: File Upload
+st.sidebar.header("📁 Data Loading")
+uploaded_files = st.sidebar.file_uploader(
+    "Upload new Softener Log CSV files (Optional)",
+    type=["csv"],
+    accept_multiple_files=True,
+)
+
+if uploaded_files:
+    st.sidebar.success("Using manually uploaded CSV file(s).")
+    data = load_and_preprocess_data(uploaded_files)
+else:
+    data = load_and_preprocess_data()
+    if not data.empty:
+        st.sidebar.info("Automatically loaded data from repository.")
+
+if not data.empty:
     st.sidebar.markdown("---")
     st.sidebar.subheader("💾 Export Merged Data")
-    csv_data = data.to_csv(index=False).encode("utf-8")
+    # CSV変換も重いため関数化してキャッシュするとさらに軽量化できます
+    @st.cache_data
+    def convert_df_to_csv(df):
+        return df.to_csv(index=False).encode("utf-8")
+        
+    csv_data = convert_df_to_csv(data)
     st.sidebar.download_button(
         label="📥 Download merged CSV",
         data=csv_data,
@@ -460,6 +486,9 @@ if not data.empty:
             "📝 Event Log",
         ]
     )
+
+    # --- 以下、元の各タブ(with tab1: 等)の処理をそのまま続けます ---
+    # ※元のコード360行目付近の「STEP 5: NaN Imputation」は前処理関数内に移動したため、削除して構いません。
 
     # --- TAB 2: Zero Flow Event Detection ---
     with tab2:
